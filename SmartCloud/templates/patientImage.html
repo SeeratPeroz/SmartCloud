@@ -1,0 +1,183 @@
+{% load static %}
+{% include 'header.html' %}
+
+<style>
+  #zoomPanel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 15, 15, 0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1050;
+  }
+
+  #zoomImage {
+    max-width: 90%;
+    max-height: 90%;
+    transition: transform 0.2s ease;
+    cursor: zoom-out;
+  }
+
+  .card-img-top {
+    height: 130px;
+    object-fit: cover;
+    border-radius: 5px;
+  }
+
+  .upload-section label {
+    font-weight: bold;
+  }
+</style>
+
+<div class="container mt-5">
+  <!-- Combined Box: Patient Info + Upload + Actions -->
+  <div class="card shadow-lg mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Patient Panel</h5>
+    </div>
+    <div class="card-body">
+      <!-- Patient Info -->
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <p><strong>First Name:</strong> {{ patient.ptnName }}</p>
+          <p><strong>Last Name:</strong> {{ patient.ptnLastname }}</p>
+          <p><strong>Date of Birth:</strong> {{ patient.ptnDOB }}</p>
+        </div>
+
+        <!-- Upload Images -->
+        <div class="col-md-8 upload-section">
+          <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
+            {% csrf_token %}
+            <label for="imageUpload">Upload Images</label>
+            <input type="file" class="form-control mb-2" id="imageUpload" name="images"
+                   accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic,.dcm,.nii,.nii.gz"
+                   multiple required>
+            <button type="submit" class="btn btn-success btn-sm">Upload Selected Images</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Delete Button (for selected images) -->
+      <form method="POST" action="{% url 'delete_images' patient.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm mb-3">Delete Selected Images</button>
+
+        <!-- Image Gallery -->
+        <div class="row g-3">
+          {% for image in images %}
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2 text-center">
+              <div class="card border-0 shadow-sm">
+                <img src="{{ image.image.url }}" alt="Patient Image"
+                     class="card-img-top"
+                     onclick="openZoom('{{ image.image.url }}')">
+                <div class="card-body p-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="selected_images" value="{{ image.id }}">
+                    <label class="form-check-label small">Select</label>
+                  </div>
+                  <a href="{% url 'delete_single_image' image.id %}" class="btn btn-sm btn-outline-danger mt-1">Delete</a>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="text-muted">No images found.</p>
+          {% endfor %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Zoom Panel -->
+<div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
+  <img id="zoomImage" src="" alt="Zoomed Image" style="user-select:none;">
+</div>
+
+<script>
+  let zoomLevel = 1;
+  const zoomImage = document.getElementById('zoomImage');
+  const zoomPanel = document.getElementById('zoomPanel');
+
+  // For dragging
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let currentTranslateX = 0;
+  let currentTranslateY = 0;
+
+  function openZoom(url) {
+    zoomImage.src = url;
+    zoomLevel = 1;
+    currentTranslateX = 0;
+    currentTranslateY = 0;
+    zoomImage.style.transform = `scale(${zoomLevel}) translate(0px, 0px)`;
+    zoomPanel.style.display = "flex";
+    zoomPanel.style.cursor = "grab";
+  }
+
+  function closeZoom(event) {
+    // Only close if clicking outside the image
+    if (event.target.id === 'zoomPanel') {
+      zoomPanel.style.display = "none";
+      zoomImage.src = "";
+    }
+  }
+
+  // Zoom with mouse wheel
+  zoomPanel.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    const delta = e.deltaY || e.detail || e.wheelDelta;
+    zoomLevel += delta > 0 ? -0.1 : 0.1;
+    zoomLevel = Math.max(1, Math.min(zoomLevel, 5)); // minimum zoom 1x
+
+    // Reset pan if zoom goes to 1 (original)
+    if (zoomLevel === 1) {
+      currentTranslateX = 0;
+      currentTranslateY = 0;
+      zoomPanel.style.cursor = "grab";
+    } else {
+      zoomPanel.style.cursor = "move";
+    }
+
+    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+  });
+
+  // Drag start
+  zoomImage.addEventListener('mousedown', (e) => {
+    if (zoomLevel <= 1) return; // don't drag if not zoomed in
+    isDragging = true;
+    dragStartX = e.clientX - currentTranslateX;
+    dragStartY = e.clientY - currentTranslateY;
+    zoomPanel.style.cursor = "grabbing";
+  });
+
+  // Dragging
+  zoomImage.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    currentTranslateX = e.clientX - dragStartX;
+    currentTranslateY = e.clientY - dragStartY;
+
+    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+  });
+
+  // Drag end
+  zoomImage.addEventListener('mouseup', () => {
+    isDragging = false;
+    zoomPanel.style.cursor = "move";
+  });
+
+  // If mouse leaves the image while dragging
+  zoomImage.addEventListener('mouseleave', () => {
+    if (isDragging) {
+      isDragging = false;
+      zoomPanel.style.cursor = "move";
+    }
+  });
+
+  // Prevent dragging the image itself in browser default
+  zoomImage.ondragstart = () => false;
+</script>
