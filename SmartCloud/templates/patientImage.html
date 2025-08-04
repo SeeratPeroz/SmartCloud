@@ -22,7 +22,7 @@
         <div class="col-md-8 upload-section">
           <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
             {% csrf_token %}
-            <label for="imageUpload">Upload Images</label>
+            <label for="imageUpload" class="form-label">Upload Images</label>
             <input type="file" class="form-control mb-2" id="imageUpload" name="images"
                    accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic,.dcm,.nii,.nii.gz"
                    multiple required>
