@@ -1,0 +1,60 @@
+{% include 'header.html' %}
+
+<div class="container mt-5">
+  <div class="card shadow-lg mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Patient Panel</h5>
+    </div>
+    <div class="card-body">
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <p><strong>First Name:</strong> {{ patient.ptnName }}</p>
+          <p><strong>Last Name:</strong> {{ patient.ptnLastname }}</p>
+          <p><strong>Date of Birth:</strong> {{ patient.ptnDOB }}</p>
+        </div>
+        <div class="col-md-8 upload-section">
+          <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
+            {% csrf_token %}
+            <label for="imageUpload">Upload Images</label>
+            <input type="file" class="form-control mb-2" id="imageUpload" name="images"
+                   accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic,.dcm,.nii,.nii.gz"
+                   multiple required>
+            <button type="submit" class="btn btn-success btn-sm">Upload Selected Images</button>
+          </form>
+        </div>
+      </div>
+
+      <form method="POST" action="{% url 'delete_images' patient.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm mb-3">Delete Selected Images</button>
+        <div class="row g-3">
+          {% for image in images %}
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2 text-center">
+              <div class="card border-0 shadow-sm">
+                <img src="{{ image.image.url }}" alt="Patient Image"
+                     class="card-img-top"
+                     onclick="openZoom('{{ image.image.url }}')">
+                <div class="card-body p-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="selected_images" value="{{ image.id }}">
+                    <label class="form-check-label small">Select</label>
+                  </div>
+                  <a href="{% url 'delete_single_image' image.id %}" class="btn btn-sm btn-outline-danger mt-1">Delete</a>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="text-muted">No images found.</p>
+          {% endfor %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Zoom Panel -->
+<div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
+  <img id="zoomImage" src="" alt="Zoomed Image" style="user-select:none;">
+</div>
+
+{% include 'footer.html' %}

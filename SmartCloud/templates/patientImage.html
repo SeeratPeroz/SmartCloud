@@ -1,38 +1,8 @@
-{% load static %}
-{% include 'header.html' %}
+{% extends 'base.html' %}
 
-<style>
-  #zoomPanel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(15, 15, 15, 0.9);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 1050;
-  }
+{% block title %}Patient Images - SmartCloud{% endblock %}
 
-  #zoomImage {
-    max-width: 90%;
-    max-height: 90%;
-    transition: transform 0.2s ease;
-    cursor: zoom-out;
-  }
-
-  .card-img-top {
-    height: 130px;
-    object-fit: cover;
-    border-radius: 5px;
-  }
-
-  .upload-section label {
-    font-weight: bold;
-  }
-</style>
-
+{% block content %}
 <div class="container mt-5">
   <!-- Combined Box: Patient Info + Upload + Actions -->
   <div class="card shadow-lg mb-4">
@@ -90,18 +60,54 @@
       </form>
     </div>
   </div>
-</div>
-<!-- Zoom Panel -->
-<div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
-  <img id="zoomImage" src="" alt="Zoomed Image" style="user-select:none;">
-</div>
 
+  <!-- Zoom Panel -->
+  <div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
+    <img id="zoomImage" src="" alt="Zoomed Image" />
+  </div>
+
+  <style>
+    /* Scoped to patientImage page */
+    #zoomPanel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 15, 15, 0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1050;
+    }
+
+    #zoomImage {
+      max-width: 90%;
+      max-height: 90%;
+      transition: transform 0.2s ease;
+      cursor: zoom-out;
+      user-select: none;
+    }
+
+    .card-img-top {
+      height: 130px;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+
+    .upload-section label {
+      font-weight: bold;
+    }
+  </style>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
   let zoomLevel = 1;
   const zoomImage = document.getElementById('zoomImage');
   const zoomPanel = document.getElementById('zoomPanel');
 
-  // For dragging
   let isDragging = false;
   let dragStartX = 0;
   let dragStartY = 0;
@@ -119,65 +125,50 @@
   }
 
   function closeZoom(event) {
-    // Only close if clicking outside the image
     if (event.target.id === 'zoomPanel') {
       zoomPanel.style.display = "none";
       zoomImage.src = "";
     }
   }
 
-  // Zoom with mouse wheel
   zoomPanel.addEventListener('wheel', function (e) {
     e.preventDefault();
     const delta = e.deltaY || e.detail || e.wheelDelta;
     zoomLevel += delta > 0 ? -0.1 : 0.1;
-    zoomLevel = Math.max(1, Math.min(zoomLevel, 5)); // minimum zoom 1x
+    zoomLevel = Math.max(1, Math.min(zoomLevel, 5));
 
-    // Reset pan if zoom goes to 1 (original)
     if (zoomLevel === 1) {
       currentTranslateX = 0;
       currentTranslateY = 0;
-      zoomPanel.style.cursor = "grab";
-    } else {
-      zoomPanel.style.cursor = "move";
     }
 
     zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
   });
 
-  // Drag start
   zoomImage.addEventListener('mousedown', (e) => {
-    if (zoomLevel <= 1) return; // don't drag if not zoomed in
+    if (zoomLevel === 1) return;
     isDragging = true;
-    dragStartX = e.clientX - currentTranslateX;
-    dragStartY = e.clientY - currentTranslateY;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
     zoomPanel.style.cursor = "grabbing";
   });
 
-  // Dragging
-  zoomImage.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    e.preventDefault();
-    currentTranslateX = e.clientX - dragStartX;
-    currentTranslateY = e.clientY - dragStartY;
-
-    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
-  });
-
-  // Drag end
-  zoomImage.addEventListener('mouseup', () => {
-    isDragging = false;
-    zoomPanel.style.cursor = "move";
-  });
-
-  // If mouse leaves the image while dragging
-  zoomImage.addEventListener('mouseleave', () => {
+  window.addEventListener('mouseup', () => {
     if (isDragging) {
       isDragging = false;
-      zoomPanel.style.cursor = "move";
+      zoomPanel.style.cursor = "grab";
     }
   });
 
-  // Prevent dragging the image itself in browser default
-  zoomImage.ondragstart = () => false;
+  window.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    currentTranslateX += dx;
+    currentTranslateY += dy;
+    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+  });
 </script>
+{% endblock %}

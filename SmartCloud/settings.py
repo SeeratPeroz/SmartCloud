@@ -26,7 +26,8 @@ SECRET_KEY = 'django-insecure-0@b+2wb*lw4+b*b@lw$bq+b_cx6$9txmyt6k(m9mobra9atfx2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["217.160.76.216", "localhost",'127.0.0.1' ]
+#STATIC_ROOT = BASE_DIR / 'static/'
 
 
 # Application definition
@@ -120,7 +121,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'SmartCloud/static')]
 
 
 # Default primary key field type
