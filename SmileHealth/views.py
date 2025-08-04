@@ -3,6 +3,8 @@ from django.contrib.auth.decorators import login_required
 from .models import Patient, Image
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib import messages
+from django.views.decorators.http import require_POST
+
 
 # Home redirects to index
 def home(request):
@@ -103,3 +105,14 @@ def delete_single_image(request, image_id):
     patient_id = image.ptnID.id
     image.delete()
     return redirect('patientImage', patient_id=patient_id)
+
+
+
+@login_required
+@require_POST
+# Delete a patient
+def delete_patient(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    # Add any permission checks here
+    patient.delete()
+    return redirect('index')

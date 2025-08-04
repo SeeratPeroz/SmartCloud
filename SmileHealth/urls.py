@@ -21,6 +21,10 @@ urlpatterns = [
     path('patient/<int:patient_id>/upload/', views.upload_images, name='upload_images'),
     path('patient/<int:patient_id>/delete/', views.delete_images, name='delete_images'),
     path('image/<int:image_id>/delete/', views.delete_single_image, name='delete_single_image'),
+
+
+    path('delete_patient/<int:patient_id>/', views.delete_patient, name='delete_patient')
+
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
