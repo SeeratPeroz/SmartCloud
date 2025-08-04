@@ -258,7 +258,7 @@
 <body>
 
 <div class="scroll-down">
-  SCROLL DOWN
+  RUNTER SCROLLEN
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
     <path d="M16 3C8.832031 3 3 8.832031 3 16s5.832031 13 13 13 13-5.832031 13-13S23.167969 3 16 3zm0 2c6.085938 0 11 4.914063 11 11 0 6.085938-4.914062 11-11 11-6.085937 0-11-4.914062-11-11C5 9.914063 9.914063 5 16 5zm-1 4v10.28125l-4-4-1.40625 1.4375L16 23.125l6.40625-6.40625L21 15.28125l-4 4V9z"/>
   </svg>
@@ -269,8 +269,8 @@
 <div class="modal">
   <div class="modal-container">
     <div class="modal-left">
-      <h1 class="modal-title">Welcome!</h1>
-      <p class="modal-desc">Fanny pack hexagon food truck, street art waistcoat kitsch.</p>
+      <h1 class="modal-title">Willkommen!</h1>
+      <p class="modal-desc">Willkommen zurück! Bitte loggen Sie sich ein, um Ihre Arbeit in der Praxis effizient zu organisieren und auf wichtige Informationen zuzugreifen.
 
       {% if messages %}
         <ul>
@@ -283,22 +283,19 @@
 <form method="POST" action="{% url 'login' %}">
   {% csrf_token %}
   <div class="input-block">
-    <label for="username" class="input-label">Username</label>
-    <input type="text" name="username" id="username" placeholder="Username" required>
+    <label for="username" class="input-label">Benutzername</label>
+    <input type="text" name="username" id="username" placeholder="Benutzername" required>
   </div>
   <div class="input-block">
-    <label for="password" class="input-label">Password</label>
-    <input type="password" name="password" id="password" placeholder="Password" required>
+    <label for="password" class="input-label">Passwort</label>
+    <input type="password" name="password" id="password" placeholder="Passwort" required>
   </div>
   <div class="modal-buttons">
-    <a href="#">Forgot your password?</a>
-    <button type="submit" class="input-button">Login</button>
+    <a href="#">Passwort vergessen?</a>
+    <button type="submit" class="input-button">Anmelden</button>
   </div>
 </form>
 
-
-
-      <p class="sign-up">Don't have an account? <a href="#">Sign up now</a></p>
     </div>
     <div class="modal-right">
       <img src="https://images.pexels.com/photos/5355919/pexels-photo-5355919.jpeg" alt="Dentist treating patient">
