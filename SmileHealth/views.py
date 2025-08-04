@@ -21,10 +21,10 @@ def login(request):
 
         if user is not None:
             auth_login(request, user)
-            print("User authenticated successfully")
+            #int("User authenticated successfully")
             return redirect('index')
         else:
-            print("User authentication failed")
+            #rint("User authentication failed")
             messages.error(request, "Invalid username or password")
 
     return render(request, "login.html")
