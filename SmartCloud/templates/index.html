@@ -1,15 +1,17 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Dashboard - SmartCloud{% endblock %}
+{% block title %}Übersicht - SmartCloud{% endblock %}
 
 {% block content %}
-<h1 class="h3 mb-4 text-gray-800">Dashboard</h1>
+<h1 class="h3 mb-4 text-gray-800">
+    Übersicht
+</h1>
 
 <div class="container py-3">
     <!-- Search bar -->
     <div class="mb-4">
-        <input type="text" id="searchInput" class="form-control" placeholder="Search falls by patient name..." onkeyup="filterFalls()">
+        <input type="text" id="searchInput" class="form-control" placeholder="Patienten suchen..." onkeyup="filterFalls()">
     </div>
 
     <div class="row g-3" id="fallsContainer">
@@ -40,14 +42,18 @@
                 </a>
             </div>
         {% empty %}
-            <p>No patients found.</p>
+            <p>
+                Keine Patienten gefunden. Bitte fügen Sie neue Patienten hinzu.
+            </p>
         {% endfor %}
     </div>
 
     {% include 'newFall.html' %}
 </div>
 
-<p>Welcome to SmartCloud! This is your index page.</p>
+<p>
+    Willkommen bei SmartCloud! Dies ist Ihre Startseite.
+</p>
 
 <script>
     function loadNewFallModal() {
