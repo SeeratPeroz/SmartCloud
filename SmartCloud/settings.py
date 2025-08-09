@@ -26,11 +26,22 @@ ASGI_APPLICATION = 'SmartCloud.asgi.application'  # Matches your project name
 # Channels settings
 # Use InMemoryChannelLayer for development; for production, consider using Redis or another backend.
 # For production, you would typically set up a Redis server and use 'channels_redis' as the backend.
+"""
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
+}"""
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
 }
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -41,7 +52,7 @@ SECRET_KEY = 'django-insecure-0@b+2wb*lw4+b*b@lw$bq+b_cx6$9txmyt6k(m9mobra9atfx2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["217.160.76.216", "localhost",'127.0.0.1' ]
+ALLOWED_HOSTS = ["217.160.76.216", "localhost",'127.0.0.1','cleverimplant.de','cleverimplant.com' ]
 #STATIC_ROOT = BASE_DIR / 'static/'
 
 
