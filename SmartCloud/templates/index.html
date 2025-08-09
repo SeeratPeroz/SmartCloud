@@ -8,10 +8,50 @@
     Übersicht
 </h1>
 
+<style>
+    /* Chat box base style */
+#chat-box {
+    position: fixed;
+    bottom: -500px; /* hidden below screen */
+    right: 20px;
+    width: 400px;
+    height: 450px;
+    border: 1px solid #ddd;
+    background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    z-index: 1051;
+    display: flex;
+    flex-direction: column;
+    transition: bottom 0.3s ease-in-out; /* smooth slide */
+}
+
+/* Visible state */
+#chat-box.open {
+    bottom: 70px; /* slides up into view */
+}
+
+/* Floating chat button */
+#chat-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 1050;
+}
+
+</style>
+
 <div class="container py-3">
     <!-- Search bar -->
     <div class="mb-4">
-        <input type="text" id="searchInput" class="form-control" placeholder="Patienten suchen..." onkeyup="filterFalls()">
+        <input type="text" id="searchInput" class="form-control" placeholder="Patienten suchen..." onkeyup="filterPatients()">
     </div>
 
     <div class="row g-3" id="fallsContainer">
@@ -26,70 +66,236 @@
         </div>
 
         {% for patient in patients %}
-            <div class="col-6 col-sm-4 col-md-3 col-lg-2 fall-card" data-patient-name="{{ patient.ptnName }} {{ patient.ptnLastname }}">
-                <a href="{% url 'patientImage' patient.id %}" style="text-decoration: none; color: inherit;">
-                    <div class="card text-white bg-info text-center position-relative" style="height: 180px; cursor: pointer;">
-                        <div class="card-body d-flex flex-column justify-content-center align-items-center">
-                            <img src="https://img.icons8.com/ios-filled/40/ffffff/task.png" class="mb-3" alt="Case Icon">
-                            <h6 class="text-white fw-bold">{{ patient.ptnName }} {{ patient.ptnLastname }}</h6>
-                        </div>
-                        <!-- Delete button -->
-                        <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2" 
-                                onclick="event.preventDefault(); confirmDelete({{ patient.id }}, this)">
-                            &times;
-                        </button>
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2 fall-card" data-patient-name="{{ patient.ptnName }} {{ patient.ptnLastname }}">
+            <a href="{% url 'patientImage' patient.id %}" style="text-decoration: none; color: inherit;">
+                <div class="card text-white bg-info text-center position-relative" style="height: 180px; cursor: pointer;">
+                    <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                        <img src="https://img.icons8.com/ios-filled/40/ffffff/task.png" class="mb-3" alt="Case Icon">
+                        <h6 class="text-white fw-bold">{{ patient.ptnName }} {{ patient.ptnLastname }}</h6>
                     </div>
-                </a>
-            </div>
+                    <!-- Delete button -->
+                    <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2" 
+                            onclick="event.preventDefault(); confirmDelete({{ patient.id }}, this)">
+                        &times;
+                    </button>
+                </div>
+            </a>
+        </div>
         {% empty %}
-            <p>
-                Keine Patienten gefunden. Bitte fügen Sie neue Patienten hinzu.
-            </p>
+        <p>
+            Keine Patienten gefunden. Bitte fügen Sie neue Patienten hinzu.
+        </p>
         {% endfor %}
     </div>
 
     {% include 'newFall.html' %}
 </div>
 
-<p>
-    Willkommen bei SmartCloud! Dies ist Ihre Startseite.
-</p>
+<!-- Chat toggle button with unread count -->
+<button id="chat-toggle-btn" style="display: none;"
+        class="btn btn-primary position-fixed" 
+        style="bottom: 20px; right: 20px; z-index: 1050;" 
+        onclick="toggleChatBox()">
+    Chat
+    <span id="unread-count" class="badge bg-danger ms-2" style="display:none;">0</span>
+</button>
+
+<div id="chat-box">
+
+    <div style="padding: 0.5rem; border-bottom: 1px solid #ddd; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+        <span>Chat mit <span id="chat-with">—</span></span>
+        <button style="border:none; background:none; font-weight:bold; cursor:pointer;" onclick="closeChatBox()">×</button>
+    </div>
+    <div style="flex: 1; display: flex; overflow: hidden;">
+        <!-- User list -->
+        <div id="chat-user-list" style="width: 120px; border-right: 1px solid #ddd; overflow-y: auto;">
+            <ul class="list-group list-group-flush" style="max-height: 100%;">
+                {% for user in users %}
+                <li class="list-group-item list-group-item-action" 
+                    onclick="startChat({{ user.id }}, '{{ user.username }}')"
+                    style="cursor: pointer;">
+                    {{ user.username }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Messages -->
+        <div style="flex: 1; display: flex; flex-direction: column;">
+            <div id="chat-messages" style="flex-grow: 1; padding: 0.5rem; overflow-y: auto; font-size: 0.9rem; background: #f9f9f9;"></div>
+            <div style="padding: 0.5rem; border-top: 1px solid #ddd;">
+                <input type="text" id="chat-input" class="form-control" placeholder="Nachricht eingeben..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            </div>
+        </div>
+    </div>
+</div>
+<button id="chat-toggle">💬</button>
+
+
+
+
 
 <script>
-    function loadNewFallModal() {
-        const modal = new bootstrap.Modal(document.getElementById('newFallModal'));
-        modal.show();
+    // Chat box toggle functionality
+document.getElementById("chat-toggle").addEventListener("click", function() {
+    document.getElementById("chat-box").classList.toggle("open");
+});
+
+function closeChatBox() {
+    document.getElementById("chat-box").classList.remove("open");
+}
+
+
+    // Delete patient confirmation
+    function confirmDelete(patientId, buttonElement) {
+    if (confirm("Sind Sie sicher, dass Sie diesen Patienten löschen möchten?")) {
+                window.location.href = `/delete_patient/${patientId}/`;  // URL must match your urls.py
+        // Example: send DELETE request or submit a form
+        console.log("Deleting patient with ID:", patientId);
+    }
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    let chatSocket = null;
+    let isSocketOpen = false;
+    let receiverId = null;
+    let unreadCount = 0;
+
+    // Start a chat with user id and username
+    window.startChat = function(id, username) {
+        if (receiverId === id) return;  // already chatting
+
+        receiverId = id;
+        document.getElementById('chat-with').textContent = username;
+        document.getElementById('chat-messages').innerHTML = '';
+        openChatBox();
+        connectWebSocket();
+        resetUnreadCount();
+    };
+
+    // Show chat box
+    function openChatBox() {
+        document.getElementById('chat-box').style.display = 'flex';
     }
 
-    // Filter falls by patient name dynamically
-    function filterFalls() {
-        const input = document.getElementById('searchInput').value.toLowerCase();
-        const falls = document.querySelectorAll('.fall-card');
-
-        falls.forEach(fall => {
-            const name = fall.getAttribute('data-patient-name').toLowerCase();
-            fall.style.display = name.includes(input) ? '' : 'none';
-        });
+    // Hide chat box
+    function closeChatBox() {
+        document.getElementById('chat-box').style.display = 'none';
     }
 
-    // Confirm delete action
-    function confirmDelete(patientId, btn) {
-        if (confirm('Are you sure you want to delete this fall?')) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `{% url 'delete_patient' 0 %}`.replace('0', patientId);
+    // Connect to WebSocket for the selected receiver
+    function connectWebSocket() {
+        if (chatSocket) {
+            chatSocket.close();
+        }
+        if (!receiverId) return;
 
-            // Add CSRF token input
-            const csrfToken = '{{ csrf_token }}';
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrfmiddlewaretoken';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${protocol}://${window.location.host}/ws/chat/${receiverId}/`;
 
-            document.body.appendChild(form);
-            form.submit();
+        chatSocket = new WebSocket(wsUrl);
+        isSocketOpen = false;
+
+        chatSocket.onopen = function() {
+            console.log("WebSocket connection opened");
+            isSocketOpen = true;
+        };
+
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const message = data.message;
+            const senderUsername = data.sender_username || 'Unknown';
+            const senderIdMsg = data.sender_id;
+
+            const messagesDiv = document.getElementById('chat-messages');
+            messagesDiv.innerHTML += `<div><strong>${senderUsername}:</strong> ${message}</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            if (data.unread_count !== undefined) {
+                updateUnreadCount(data.unread_count);
+            }
+
+            // If message is from another user and chat is hidden, increment unread badge
+            if (senderIdMsg !== receiverId && document.getElementById('chat-box').style.display === 'none') {
+                incrementUnreadCount();
+            }
+        };
+
+        chatSocket.onclose = function() {
+            console.log('Chat socket closed unexpectedly');
+            isSocketOpen = false;
+        };
+
+        chatSocket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+            isSocketOpen = false;
+        };
+    }
+
+    // Send message through WebSocket if open
+    window.sendMessage = function() {
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message || !chatSocket) return;
+
+        if (isSocketOpen) {
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'receiver_id': receiverId,
+            }));
+            input.value = '';
+        } else {
+            console.warn("WebSocket is not open yet.");
+        }
+    };
+
+    // Update unread message badge
+    function updateUnreadCount(count) {
+        unreadCount = count;
+        const badge = document.getElementById('unread-count');
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
         }
     }
+
+    // Increment unread message count
+    function incrementUnreadCount() {
+        unreadCount++;
+        updateUnreadCount(unreadCount);
+    }
+
+    // Reset unread message count
+    function resetUnreadCount() {
+        unreadCount = 0;
+        updateUnreadCount(unreadCount);
+    }
+
+    // Expose open and close chat box functions globally if needed
+    window.openChatBox = openChatBox;
+    window.closeChatBox = closeChatBox;
+});
+
+// Filter patients based on search input
+function filterPatients() {
+    let input = document.getElementById("searchInput").value.toLowerCase();
+    let cards = document.querySelectorAll("#fallsContainer .fall-card");
+
+    cards.forEach(card => {
+        let name = card.getAttribute("data-patient-name").toLowerCase();
+        if (name.includes(input)) {
+            card.style.display = "";
+        } else {
+            card.style.display = "none";
+        }
+    });
+}
+
+
 </script>
+
+
 {% endblock %}

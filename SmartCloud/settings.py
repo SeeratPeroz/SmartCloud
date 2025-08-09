@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+print(os.environ.get('DJANGO_SETTINGS_MODULE'))
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,6 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# SECURITY WARNING: keep the secret key used in production secret!
+ASGI_APPLICATION = 'SmartCloud.asgi.application'  # Matches your project name
+
+# Channels settings
+# Use InMemoryChannelLayer for development; for production, consider using Redis or another backend.
+# For production, you would typically set up a Redis server and use 'channels_redis' as the backend.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -43,10 +55,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'SmileHealth',
+    'channels', 
 ]
+
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # For serving static files in production
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -125,6 +142,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'SmartCloud/static')]
+# Add WhiteNoise storage to compress and cache static files efficiently
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 
 # Default primary key field type

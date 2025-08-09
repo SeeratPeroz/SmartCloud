@@ -23,7 +23,11 @@ urlpatterns = [
     path('image/<int:image_id>/delete/', views.delete_single_image, name='delete_single_image'),
 
 
-    path('delete_patient/<int:patient_id>/', views.delete_patient, name='delete_patient')
+    path('delete_patient/<int:patient_id>/', views.delete_patient, name='delete_patient'),
+
+
+    # Profile management
+    path('settings/', views.user_settings, name='user_settings')
 
 ]
 if settings.DEBUG:

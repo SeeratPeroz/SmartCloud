@@ -1,9 +1,11 @@
 from django.contrib import admin
-from .models import Patient, Image
+from .models import Patient, Image,Profile, Message
 
 # Register your models here.
 from django.contrib import admin
 from .models import Patient, Image
+
+admin.site.register(Message)
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):
@@ -16,3 +18,9 @@ class ImageAdmin(admin.ModelAdmin):
     list_display = ('id', 'imgDesc', 'ptnID', 'usrID')
     search_fields = ('imgDesc',)
     list_filter = ('ptnID', 'usrID')
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'avatar_url')
+    search_fields = ('user__username', 'user__email')
+

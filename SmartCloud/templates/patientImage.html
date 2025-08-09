@@ -1,73 +1,73 @@
 {% extends 'base.html' %}
 
-{% block title %}Patient Images - SmartCloud{% endblock %}
+{% block title %}Patientenbilder - SmartCloud{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
-  <!-- Combined Box: Patient Info + Upload + Actions -->
+  <!-- Kombinierte Box: Patientendaten + Upload + Aktionen -->
   <div class="card shadow-lg mb-4">
     <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">Patient Panel</h5>
+      <h5 class="mb-0">Patientenbereich</h5>
     </div>
     <div class="card-body">
-      <!-- Patient Info -->
+      <!-- Patientendaten -->
       <div class="row mb-3">
         <div class="col-md-4">
-          <p><strong>First Name:</strong> {{ patient.ptnName }}</p>
-          <p><strong>Last Name:</strong> {{ patient.ptnLastname }}</p>
-          <p><strong>Date of Birth:</strong> {{ patient.ptnDOB }}</p>
+          <p><strong>Vorname:</strong> {{ patient.ptnName }}</p>
+          <p><strong>Nachname:</strong> {{ patient.ptnLastname }}</p>
+          <p><strong>Geburtsdatum:</strong> {{ patient.ptnDOB }}</p>
         </div>
 
-        <!-- Upload Images -->
+        <!-- Bilder hochladen -->
         <div class="col-md-8 upload-section">
           <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
             {% csrf_token %}
-            <label for="imageUpload" class="form-label">Upload Images</label>
+            <label for="imageUpload" class="form-label">Bilder hochladen</label>
             <input type="file" class="form-control mb-2" id="imageUpload" name="images"
                    accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic,.dcm,.nii,.nii.gz"
                    multiple required>
-            <button type="submit" class="btn btn-success btn-sm">Upload Selected Images</button>
+            <button type="submit" class="btn btn-success btn-sm">Ausgewählte Bilder hochladen</button>
           </form>
         </div>
       </div>
 
-      <!-- Delete Button (for selected images) -->
+      <!-- Löschbutton (für ausgewählte Bilder) -->
       <form method="POST" action="{% url 'delete_images' patient.id %}">
         {% csrf_token %}
-        <button type="submit" class="btn btn-danger btn-sm mb-3">Delete Selected Images</button>
+        <button type="submit" class="btn btn-danger btn-sm mb-3">Ausgewählte Bilder löschen</button>
 
-        <!-- Image Gallery -->
+        <!-- Bildergalerie -->
         <div class="row g-3">
           {% for image in images %}
             <div class="col-6 col-sm-4 col-md-3 col-lg-2 text-center">
               <div class="card border-0 shadow-sm">
-                <img src="{{ image.image.url }}" alt="Patient Image"
+                <img src="{{ image.image.url }}" alt="Patientenbild"
                      class="card-img-top"
                      onclick="openZoom('{{ image.image.url }}')">
                 <div class="card-body p-2">
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="selected_images" value="{{ image.id }}">
-                    <label class="form-check-label small">Select</label>
+                    <label class="form-check-label small">Auswählen</label>
                   </div>
-                  <a href="{% url 'delete_single_image' image.id %}" class="btn btn-sm btn-outline-danger mt-1">Delete</a>
+                  <a href="{% url 'delete_single_image' image.id %}" class="btn btn-sm btn-outline-danger mt-1">Löschen</a>
                 </div>
               </div>
             </div>
           {% empty %}
-            <p class="text-muted">No images found.</p>
+            <p class="text-muted">Keine Bilder gefunden.</p>
           {% endfor %}
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Zoom Panel -->
+  <!-- Zoom-Panel -->
   <div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
-    <img id="zoomImage" src="" alt="Zoomed Image" />
+    <img id="zoomImage" src="" alt="Vergrößertes Bild" />
   </div>
 
   <style>
-    /* Scoped to patientImage page */
+    /* Nur für die Patientenbild-Seite */
     #zoomPanel {
       position: fixed;
       top: 0;
