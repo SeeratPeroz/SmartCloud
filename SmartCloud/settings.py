@@ -55,6 +55,14 @@ DEBUG = True
 ALLOWED_HOSTS = ["217.160.76.216", "localhost",'127.0.0.1','cleverimplant.de','cleverimplant.com' ]
 #STATIC_ROOT = BASE_DIR / 'static/'
 
+# CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = [
+    "https://cleverimplant.de",
+    "https://cleverimplant.com",
+    # add other trusted domains if any, e.g. "https://www.cleverimplant.de"
+]
+    
+
 
 # Application definition
 
