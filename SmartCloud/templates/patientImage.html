@@ -1,47 +1,92 @@
 {% extends 'base.html' %}
 
-{% block title %}Patientenbilder - CleverImplant{% endblock %}
+{% block title %}Patientenbilder & -videos - CleverImplant{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
-  <!-- Kombinierte Box: Patientendaten + Upload + Aktionen -->
+  <!-- Kombinierte Box: Patientendaten + Uploads -->
   <div class="card shadow-lg mb-4">
-    <div class="card-header bg-primary text-white">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Patientenbereich</h5>
+      <div class="small">
+        <strong>{{ patient.ptnName }} {{ patient.ptnLastname }}</strong> —
+        Geburtsdatum: {{ patient.ptnDOB }}
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="row g-3">
+        <!-- Bilder hochladen -->
+        <div class="col-12 col-lg-6">
+          <div class="card h-100">
+            <div class="card-header bg-light">
+              <strong>Bilder hochladen</strong>
+            </div>
+            <div class="card-body">
+              <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
+                {% csrf_token %}
+                <label for="imageUpload" class="form-label">Dateien auswählen</label>
+                <input type="file"
+                       class="form-control mb-2"
+                       id="imageUpload"
+                       name="images"
+                       accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic"
+                       multiple
+                       required>
+                <button type="submit" class="btn btn-success btn-sm">
+                  Ausgewählte Bilder hochladen
+                </button>
+              </form>
+              <div class="form-text mt-2">Unterstützt: JPG, PNG, GIF, WEBP …</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Videos hochladen -->
+        <div class="col-12 col-lg-6">
+          <div class="card h-100">
+            <div class="card-header bg-light">
+              <strong>Videos hochladen</strong>
+            </div>
+            <div class="card-body">
+              <form method="POST" enctype="multipart/form-data" action="{% url 'upload_videos' patient.id %}">
+                {% csrf_token %}
+                <label for="videoUpload" class="form-label">Dateien auswählen</label>
+                <input type="file"
+                       class="form-control mb-2"
+                       id="videoUpload"
+                       name="videos"
+                       accept="video/*"
+                       multiple
+                       required>
+                <button type="submit" class="btn btn-success btn-sm">
+                  Ausgewählte Videos hochladen
+                </button>
+              </form>
+              <div class="form-text mt-2">Unterstützt: MP4, MOV, WEBM, AVI, MKV …</div>
+            </div>
+          </div>
+        </div>
+      </div> <!-- /row -->
+    </div> <!-- /card-body -->
+  </div> <!-- /card -->
+
+  <!-- Bilder: Auswahl-Löschen + Galerie -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+      <strong>Bilder</strong>
     </div>
     <div class="card-body">
-      <!-- Patientendaten -->
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <p><strong>Vorname:</strong> {{ patient.ptnName }}</p>
-          <p><strong>Nachname:</strong> {{ patient.ptnLastname }}</p>
-          <p><strong>Geburtsdatum:</strong> {{ patient.ptnDOB }}</p>
-        </div>
-
-        <!-- Bilder hochladen -->
-        <div class="col-md-8 upload-section">
-          <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
-            {% csrf_token %}
-            <label for="imageUpload" class="form-label">Bilder hochladen</label>
-            <input type="file" class="form-control mb-2" id="imageUpload" name="images"
-                   accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic,.dcm,.nii,.nii.gz"
-                   multiple required>
-            <button type="submit" class="btn btn-success btn-sm">Ausgewählte Bilder hochladen</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- Löschbutton (für ausgewählte Bilder) -->
       <form method="POST" action="{% url 'delete_images' patient.id %}">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger btn-sm mb-3">Ausgewählte Bilder löschen</button>
 
-        <!-- Bildergalerie -->
         <div class="row g-3">
           {% for image in images %}
             <div class="col-6 col-sm-4 col-md-3 col-lg-2 text-center">
               <div class="card border-0 shadow-sm">
-                <img src="{{ image.image.url }}" alt="Patientenbild"
+                <img src="{{ image.image.url }}"
+                     alt="Patientenbild"
                      class="card-img-top"
                      onclick="openZoom('{{ image.image.url }}')">
                 <div class="card-body p-2">
@@ -54,33 +99,62 @@
               </div>
             </div>
           {% empty %}
-            <p class="text-muted">Keine Bilder gefunden.</p>
+            <p class="text-muted mb-0">Keine Bilder gefunden.</p>
           {% endfor %}
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Zoom-Panel -->
+  <!-- Videos: Auswahl-Löschen + Liste -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-white">
+      <strong>Videos</strong>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{% url 'delete_videos' patient.id %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger btn-sm mb-3">Ausgewählte Videos löschen</button>
+
+        <div class="row g-3">
+          {% for v in videos %}
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+              <div class="card border-0 shadow-sm p-2">
+                <video src="{{ v.file.url }}" controls style="width:100%; height:auto;"></video>
+                <div class="d-flex align-items-center justify-content-between mt-2">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="selected_videos" value="{{ v.id }}">
+                    <label class="form-check-label small">Auswählen</label>
+                  </div>
+                  <a href="{% url 'delete_single_video' v.id %}" class="btn btn-sm btn-outline-danger">Löschen</a>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <p class="text-muted mb-0">Keine Videos gefunden.</p>
+          {% endfor %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Zoom-Panel (für Bilder) -->
   <div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
     <img id="zoomImage" src="" alt="Vergrößertes Bild" />
   </div>
 
   <style>
-    /* Nur für die Patientenbild-Seite */
+    /* Bild-Zoom Overlay */
     #zoomPanel {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       background-color: rgba(15, 15, 15, 0.9);
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 1050;
     }
-
     #zoomImage {
       max-width: 90%;
       max-height: 90%;
@@ -88,15 +162,10 @@
       cursor: zoom-out;
       user-select: none;
     }
-
     .card-img-top {
       height: 130px;
       object-fit: cover;
       border-radius: 5px;
-    }
-
-    .upload-section label {
-      font-weight: bold;
     }
   </style>
 </div>
@@ -104,6 +173,7 @@
 
 {% block extra_scripts %}
 <script>
+  // --- Image Zoom Logic ---
   let zoomLevel = 1;
   const zoomImage = document.getElementById('zoomImage');
   const zoomPanel = document.getElementById('zoomPanel');
@@ -123,28 +193,23 @@
     zoomPanel.style.display = "flex";
     zoomPanel.style.cursor = "grab";
   }
-
   function closeZoom(event) {
     if (event.target.id === 'zoomPanel') {
       zoomPanel.style.display = "none";
       zoomImage.src = "";
     }
   }
-
   zoomPanel.addEventListener('wheel', function (e) {
     e.preventDefault();
     const delta = e.deltaY || e.detail || e.wheelDelta;
     zoomLevel += delta > 0 ? -0.1 : 0.1;
     zoomLevel = Math.max(1, Math.min(zoomLevel, 5));
-
     if (zoomLevel === 1) {
       currentTranslateX = 0;
       currentTranslateY = 0;
     }
-
     zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
   });
-
   zoomImage.addEventListener('mousedown', (e) => {
     if (zoomLevel === 1) return;
     isDragging = true;
@@ -152,14 +217,12 @@
     dragStartY = e.clientY;
     zoomPanel.style.cursor = "grabbing";
   });
-
   window.addEventListener('mouseup', () => {
     if (isDragging) {
       isDragging = false;
       zoomPanel.style.cursor = "grab";
     }
   });
-
   window.addEventListener('mousemove', (e) => {
     if (!isDragging) return;
     const dx = e.clientX - dragStartX;

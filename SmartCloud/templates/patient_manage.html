@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient verwalten - CleverImplant{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h4 mb-0">Patient verwalten</h2>
+    <a href="{% url 'patientImage' patient.id %}" class="btn btn-outline-secondary btn-sm">Zurück zum Patientenbereich</a>
+  </div>
+
+  <!-- Only owner may edit/share -->
+  {% if request.user.id != patient.usrID.id %}
+    <div class="alert alert-warning">
+      Sie haben nur Leserechte. Änderungen können nur vom Eigentümer ({{ patient.usrID.username }}) vorgenommen werden.
+    </div>
+  {% endif %}
+
+  <div class="row g-3">
+    <!-- Details bearbeiten -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white"><strong>Details bearbeiten</strong></div>
+        <div class="card-body">
+          <form method="POST" action="{% url 'patient_manage' patient.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="details">
+            <div class="mb-3">
+              <label class="form-label">Vorname</label>
+              <input type="text" name="ptnName" class="form-control" value="{{ patient.ptnName }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nachname</label>
+              <input type="text" name="ptnLastname" class="form-control" value="{{ patient.ptnLastname }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Geburtsdatum</label>
+              <input type="date" name="ptnDOB" class="form-control" value="{{ patient.ptnDOB|date:'Y-m-d' }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+            </div>
+            {% if request.user.id == patient.usrID.id %}
+            <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Patient teilen -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-white"><strong>Patient teilen</strong></div>
+        <div class="card-body">
+          <form method="POST" action="{% url 'patient_manage' patient.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="share">
+            <label class="form-label">Mit Benutzern teilen:</label>
+            <select class="form-control" name="share_with" multiple size="8" {% if request.user.id != patient.usrID.id %}disabled{% endif %}>
+              {% for u in users %}
+                {% if u.id != patient.usrID.id %}
+                  <option value="{{ u.id }}" {% if u in patient.shared_with.all %}selected{% endif %}>{{ u.username }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <div class="form-text mt-2">Tipp: Strg/Cmd halten, um mehrere auszuwählen.</div>
+            {% if request.user.id == patient.usrID.id %}
+            <button type="submit" class="btn btn-primary btn-sm mt-3">Teilen speichern</button>
+            {% endif %}
+          </form>
+          {% if patient.shared_with.all %}
+          <hr>
+          <div class="small text-muted">
+            Aktuell geteilt mit:
+            {% for u in patient.shared_with.all %}
+              <span class="badge bg-light text-dark">{{ u.username }}</span>
+            {% empty %}
+              <span class="text-muted">Niemand</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Thumbnail hochladen -->
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white"><strong>Thumbnail</strong></div>
+        <div class="card-body">
+          <div class="row g-3 align-items-center">
+            <div class="col-auto">
+              {% if patient.thumbnail %}
+                <img src="{{ patient.thumbnail.url }}" alt="Aktuelles Thumbnail" style="width:120px; height:80px; object-fit:cover; border-radius:6px;">
+              {% else %}
+                <div class="text-muted small">Kein Thumbnail hochgeladen.</div>
+              {% endif %}
+            </div>
+            <div class="col">
+              <form method="POST" enctype="multipart/form-data" action="{% url 'patient_manage' patient.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="form" value="thumb">
+                <div class="mb-2">
+                  <input type="file" name="thumbnail" accept="image/*" class="form-control" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+                </div>
+                {% if request.user.id == patient.usrID.id %}
+                <button type="submit" class="btn btn-success btn-sm">Thumbnail hochladen/ersetzen</button>
+                {% endif %}
+              </form>
+              {% if patient.thumbnail and request.user.id == patient.usrID.id %}
+              <form method="POST" class="mt-2" action="{% url 'patient_manage' patient.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="form" value="thumb_remove">
+                <button type="submit" class="btn btn-outline-danger btn-sm">Thumbnail entfernen</button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+          <div class="form-text mt-2">Empfohlen: Querformat ~ 4:3, max. 1–2 MB.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

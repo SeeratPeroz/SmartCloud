@@ -16,6 +16,8 @@ urlpatterns = [
 
     # Patient image page
     path('patient/<int:patient_id>/', views.patient_image, name='patientImage'),
+    path('patient/<int:patient_id>/settings/', views.patient_manage, name='patient_manage'),
+
 
     # Upload & delete images for patient
     path('patient/<int:patient_id>/upload/', views.upload_images, name='upload_images'),
@@ -27,7 +29,13 @@ urlpatterns = [
 
 
     # Profile management
-    path('settings/', views.user_settings, name='user_settings')
+    path('settings/', views.user_settings, name='user_settings'),
+
+    # Video routes
+    path('patient/<int:patient_id>/videos/upload/', views.upload_videos, name='upload_videos'),
+    path('patient/<int:patient_id>/videos/delete/', views.delete_videos, name='delete_videos'),
+    path('video/<int:video_id>/delete/', views.delete_single_video, name='delete_single_video'),
+
 
 ]
 if settings.DEBUG:

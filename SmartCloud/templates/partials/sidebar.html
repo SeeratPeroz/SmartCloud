@@ -20,5 +20,29 @@
     </a>
   </li>
 
-  <!-- Add more nav items here -->
+  <!-- Divider -->
+  <hr class="sidebar-divider">
+
+  <!-- Scope filters -->
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'index' %}?scope=all">
+      <i class="fas fa-users"></i>
+      <span>Alle</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'index' %}?scope=mine">
+      <i class="fas fa-user"></i>
+      <span>Meine</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="{% url 'index' %}?scope=shared">
+      <i class="fas fa-user-friends"></i>
+      <span>Mit mir geteilt</span>
+    </a>
+  </li>
+
+  <!-- Divider -->
+  <hr class="sidebar-divider d-none d-md-block" />
 </ul>

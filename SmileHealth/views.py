@@ -1,13 +1,16 @@
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from .models import Patient, Image, Message,Profile
+from .models import Patient, Image, Message,Profile,Video
 from .models import Profile  # Your profile model
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
 from django.contrib.auth import update_session_auth_hash
+from django.http import HttpResponseForbidden
+from django.db.models import Q
+
 
 
 
@@ -39,17 +42,89 @@ def logout_view(request):
     return redirect('login')
 
 
+
 # Main patient list
 @login_required
 def index(request):
-    users = User.objects.exclude(id=request.user.id)  # Exclude yourself
+    users = User.objects.exclude(id=request.user.id)  # for your chat list
     avatar = Profile.objects.filter(user=request.user).first()
-    patients = Patient.objects.all()
+
+    scope = request.GET.get('scope', 'all')  # 'all' | 'mine' | 'shared'
+
+    if scope == 'mine':
+        patients = Patient.objects.filter(usrID=request.user)
+    elif scope == 'shared':
+        patients = Patient.objects.filter(shared_with=request.user).exclude(usrID=request.user).distinct()
+    else:  # 'all' -> show EVERYTHING in the DB, regardless of owner/share
+        patients = Patient.objects.all()
+
+    counts = {
+        'all': Patient.objects.count(),
+        'mine': Patient.objects.filter(usrID=request.user).count(),
+        'shared': Patient.objects.filter(shared_with=request.user).exclude(usrID=request.user).distinct().count(),
+    }
+
     return render(request, 'index.html', {
         'users': users,
         'patients': patients,
         'avatar': avatar,
+        'scope': scope,
+        'counts': counts,
     })
+
+# Patient management view
+@login_required
+def patient_manage(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    users = User.objects.exclude(id=request.user.id)  # for share multiselect
+
+    if request.method == "POST":
+        form_type = request.POST.get("form")
+
+        # Only owner can modify anything
+        if patient.usrID != request.user:
+            messages.error(request, "Nur der Eigentümer darf diesen Patienten bearbeiten oder teilen.")
+            return redirect('patient_manage', patient_id=patient.id)
+
+        if form_type == "details":
+            patient.ptnName = request.POST.get("ptnName", patient.ptnName).strip()
+            patient.ptnLastname = request.POST.get("ptnLastname", patient.ptnLastname).strip()
+            patient.ptnDOB = request.POST.get("ptnDOB") or patient.ptnDOB
+            patient.save()
+            messages.success(request, "Patientendaten gespeichert.")
+            return redirect('patient_manage', patient_id=patient.id)
+
+        elif form_type == "share":
+            ids = request.POST.getlist("share_with")
+            share_set = User.objects.filter(id__in=ids).exclude(id=patient.usrID_id)
+            patient.shared_with.set(share_set)
+            messages.success(request, "Freigaben aktualisiert.")
+            return redirect('patient_manage', patient_id=patient.id)
+
+        elif form_type == "thumb":
+            if 'thumbnail' in request.FILES:
+                # Optional: validate size/type here
+                patient.thumbnail = request.FILES['thumbnail']
+                patient.save()
+                messages.success(request, "Thumbnail aktualisiert.")
+            else:
+                messages.error(request, "Keine Bilddatei ausgewählt.")
+            return redirect('patient_manage', patient_id=patient.id)
+
+        elif form_type == "thumb_remove":
+            if patient.thumbnail:
+                patient.thumbnail.delete(save=False)
+                patient.thumbnail = None
+                patient.save()
+                messages.success(request, "Thumbnail entfernt.")
+            return redirect('patient_manage', patient_id=patient.id)
+
+    # GET
+    return render(request, 'patient_manage.html', {
+        'patient': patient,
+        'users': users,
+    })
+
 
 # Page for loading new fall (case)
 @login_required
@@ -85,7 +160,8 @@ def add_patient(request):
 def patient_image(request, patient_id):
     patient = get_object_or_404(Patient, id=patient_id)
     images = Image.objects.filter(ptnID=patient)
-    return render(request, 'patientImage.html', {'patient': patient, 'images': images})
+    videos = patient.videos.all().order_by('-uploaded_at')  # NEW
+    return render(request, 'patientImage.html', {'patient': patient, 'images': images, 'videos': videos })
 
 # Upload multiple images
 @login_required
@@ -167,3 +243,29 @@ def user_settings(request):
         return redirect("user_settings")
 
     return render(request, "user_settings.html", {"avatar_nums": avatar_nums})
+
+
+# Video Upload
+
+@login_required
+def upload_videos(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id, usrID=request.user)
+    if request.method == 'POST' and request.FILES.getlist('videos'):
+        for f in request.FILES.getlist('videos'):
+            Video.objects.create(ptnID=patient, usrID=request.user, file=f, vidDesc='')
+    return redirect('patientImage', patient_id=patient.id)
+
+@login_required
+def delete_videos(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id, usrID=request.user)
+    if request.method == 'POST':
+        ids = request.POST.getlist('selected_videos')
+        Video.objects.filter(id__in=ids, ptnID=patient, usrID=request.user).delete()
+    return redirect('patientImage', patient_id=patient.id)
+
+@login_required
+def delete_single_video(request, video_id):
+    video = get_object_or_404(Video, id=video_id, usrID=request.user)
+    pid = video.ptnID.id
+    video.delete()
+    return redirect('patientImage', patient_id=pid)

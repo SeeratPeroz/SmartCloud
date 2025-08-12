@@ -12,23 +12,33 @@
     <li class="nav-item dropdown no-arrow">
       <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
          data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-          <!-- Online status circle -->
-          <span class="position-absolute bottom-0 end-0 translate-middle p-1 bg-success border border-light rounded-circle"
-                style="width:12px; height:12px;">
-          </span>
-        <span class="mr-2 d-none d-lg-inline text-gray-600 small">{{ user.first_name  }}</span>
-        <img class="img-profile rounded-circle" src="{{ avatar.avatar_url }}" style="width:40px; height:40px;" />
+        <!-- Online status circle -->
+        <span class="position-absolute bottom-0 end-0 translate-middle p-1 bg-success border border-light rounded-circle"
+              style="width:12px; height:12px;">
+        </span>
+
+        <span class="mr-2 d-none d-lg-inline text-gray-600 small">
+          {{ user.first_name|default:user.username }}
+        </span>
+
+        <!-- Avatar (with fallback if URL fails) -->
+        <img class="img-profile rounded-circle"
+             src="{% if avatar and avatar.avatar_url %}{{ avatar.avatar_url }}{% else %}https://i.pravatar.cc/150?img=1{% endif %}"
+             onerror="this.onerror=null; this.src='https://i.pravatar.cc/150?img=1';"
+             alt="Profilbild"
+             style="width:40px; height:40px;" />
       </a>
+
       <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
         <a class="dropdown-item" href="{% url 'user_settings' %}">
           <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
           Einstellungen
         </a>
         <div class="dropdown-divider"></div>
-          <a class="dropdown-item" href="{% url 'logout' %}">
-            <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-            Abmelden
-          </a>
+        <a class="dropdown-item" href="{% url 'logout' %}">
+          <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+          Abmelden
+        </a>
       </div>
     </li>
   </ul>

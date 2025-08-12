@@ -73,8 +73,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'SmileHealth',
+    'SmileHealth.apps.SmilehealthConfig',
     'channels', 
+
 ]
 
 
@@ -103,6 +104,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'SmileHealth.context_processors.user_avatar',
+
             ],
         },
     },

@@ -1,11 +1,17 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils.text import slugify
+
+
 
 class Patient(models.Model):
     ptnName = models.CharField(max_length=100)
     ptnLastname = models.CharField(max_length=100)
     ptnDOB = models.DateField()
     usrID = models.ForeignKey(User, on_delete=models.CASCADE, related_name='patients')
+    thumbnail = models.ImageField(upload_to='patient_thumbs/', blank=True, null=True)
+    shared_with = models.ManyToManyField(User, related_name='shared_patients', blank=True)  # <— NEW
+
 
     def __str__(self):
         return f"{self.ptnName} {self.ptnLastname}"
@@ -42,3 +48,16 @@ class Profile(models.Model):
     def __str__(self):
         return self.user.username
     
+
+# Viedeo Upload
+
+# models.py
+class Video(models.Model):
+    vidDesc = models.TextField(blank=True)
+    file = models.FileField(upload_to='patient_videos/')  # saved at MEDIA_ROOT/patient_videos/<filename>
+    ptnID = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='videos')
+    usrID = models.ForeignKey(User, on_delete=models.CASCADE, related_name='videos')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Video {self.id} for {self.ptnID}"

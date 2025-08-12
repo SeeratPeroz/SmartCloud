@@ -1,3 +1,4 @@
+# SmileHealth/apps.py
 from django.apps import AppConfig
 
 
@@ -6,4 +7,5 @@ class SmilehealthConfig(AppConfig):
     name = 'SmileHealth'
 
     def ready(self):
-        import SmileHealth.signals  # Impor
+        # Ensure signal receivers are registered
+        import SmileHealth.signals  # noqa
