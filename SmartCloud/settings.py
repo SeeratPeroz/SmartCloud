@@ -167,6 +167,11 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'SmartCloud/static')]
 # Add WhiteNoise storage to compress and cache static files efficiently
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+# File upload size limits
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024      # 10MB in-memory, rest to disk
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024      # 10MB
+
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
