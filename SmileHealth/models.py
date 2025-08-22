@@ -61,3 +61,19 @@ class Video(models.Model):
 
     def __str__(self):
         return f"Video {self.id} for {self.ptnID}"
+
+
+
+# place near your other models
+class Comment(models.Model):
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='patient_comments')
+    content = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Comment by {self.author} on {self.patient} at {self.created_at:%Y-%m-%d %H:%M}"

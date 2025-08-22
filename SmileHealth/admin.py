@@ -1,11 +1,12 @@
 from django.contrib import admin
-from .models import Patient, Image,Profile, Message
+from .models import Patient, Image,Profile, Message,Comment
 
 # Register your models here.
 from django.contrib import admin
 from .models import Patient, Image
 
 admin.site.register(Message)
+admin.site.register(Comment)
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):

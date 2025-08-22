@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from .models import Patient, Image, Message,Profile,Video
+from .models import Patient, Image, Message,Profile,Video,Comment
 from .models import Profile  # Your profile model
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib import messages
@@ -155,13 +155,49 @@ def add_patient(request):
 
     return redirect('index')
 
+
+
+def _can_access_patient(user, patient):
+    return (patient.usrID_id == user.id) or patient.shared_with.filter(id=user.id).exists()
+
+
 # Show patient info and all images
 @login_required
 def patient_image(request, patient_id):
     patient = get_object_or_404(Patient, id=patient_id)
+    
+  
+    
     images = Image.objects.filter(ptnID=patient)
     videos = patient.videos.all().order_by('-uploaded_at')  # NEW
-    return render(request, 'patientImage.html', {'patient': patient, 'images': images, 'videos': videos })
+    comments = Comment.objects.filter(patient=patient).select_related('author', 'author__profile')
+    return render(request, 'patientImage.html', {'patient': patient, 'images': images, 'videos': videos, 'comments': comments,
+    'can_comment': _can_access_patient(request.user, patient)
+})
+
+@require_POST
+@login_required
+# Adding comment to Patients 
+def add_comment(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    if not _can_access_patient(request.user, patient):
+        return JsonResponse({'ok': False, 'error': 'Kein Zugriff'}, status=403)
+
+    content = (request.POST.get('content') or '').strip()
+    if not content:
+        return JsonResponse({'ok': False, 'error': 'Kommentar darf nicht leer sein.'}, status=400)
+    if len(content) > 2000:
+        return JsonResponse({'ok': False, 'error': 'Max. 2000 Zeichen.'}, status=400)
+
+    c = Comment.objects.create(patient=patient, author=request.user, content=content)
+    return JsonResponse({
+        'ok': True,
+        'id': c.id,
+        'content': c.content,
+        'author': request.user.get_full_name() or request.user.username,
+        'created': c.created_at.strftime('%Y-%m-%d %H:%M'),
+    })
+
 
 # Upload multiple images
 @login_required

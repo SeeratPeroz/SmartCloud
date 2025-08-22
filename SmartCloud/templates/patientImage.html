@@ -1,237 +1,462 @@
 {% extends 'base.html' %}
 
-{% block title %}Patientenbilder & -videos - CleverImplant{% endblock %}
+{% block title %}Patienten — Medien{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Dragover highlight */
+  #dropzone.dragover { background: rgba(13,110,253,.06); border-color:#0d6efd !important; }
+
+  /* Upload queue items */
+  .uq-item .progress { height: 8px; }
+  .uq-item .file-meta { font-size: .85rem; }
+
+  /* Comments drawer + backdrop (right side) */
+  .comments-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.35);
+    z-index: 1064; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  }
+  .comments-backdrop.show { opacity: 1; pointer-events: auto; }
+
+  .comments-drawer {
+    position: fixed; top: 0; right: -390px; width: 380px; height: 100vh;
+    background: #fff; z-index: 1066; box-shadow: -8px 0 24px rgba(0,0,0,.15);
+    display: flex; flex-direction: column; transition: right .25s ease-in-out;
+  }
+  .comments-drawer.open { right: 0; }
+
+  .comments-drawer .drawer-header {
+    padding: .75rem 1rem; border-bottom: 1px solid #e9ecef;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .comments-drawer .drawer-body { padding: .75rem .75rem 0; overflow-y: auto; flex: 1; }
+  .comments-drawer .drawer-footer { border-top: 1px solid #e9ecef; padding: .75rem; }
+
+  /* Chat bubbles */
+  .msg { display: flex; gap: .5rem; margin-bottom: .5rem; }
+  .msg .avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: 0 0 36px; }
+  .msg .bubble { max-width: 78%; padding: .5rem .65rem; border-radius: .75rem; background: #f4f6f8; }
+  .msg .meta { font-size: .75rem; color: #6c757d; margin-top: .125rem; }
+  .msg.mine { flex-direction: row-reverse; }
+  .msg.mine .bubble { background: #e7f1ff; }
+  .msg.mine .meta { text-align: right; }
+
+  /* Fullscreen Viewer */
+  #viewer.d-none { display:none; }
+  #viewer { position: fixed; inset: 0; z-index: 1060; display:flex; align-items:center; justify-content:center; }
+  #viewerBackdrop { position:absolute; inset:0; background:rgba(0,0,0,.85); }
+  #viewerImg {
+    position: relative; max-width:none; max-height:none;
+    transform: translate(var(--tx,0px), var(--ty,0px)) scale(var(--s,1));
+    cursor: grab; user-select: none; will-change: transform;
+  }
+  #viewer.grabbing #viewerImg { cursor: grabbing; }
+  #viewerToolbar { position: absolute; top:12px; right:12px; display:flex; gap:8px; border-radius:8px; background:#fff; padding:6px; }
+
+  @media (max-width: 576px) {
+    .comments-drawer { width: 100%; right: -100%; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-  <!-- Kombinierte Box: Patientendaten + Uploads -->
-  <div class="card shadow-lg mb-4">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-      <h5 class="mb-0">Patientenbereich</h5>
-      <div class="small">
-        <strong>{{ patient.ptnName }} {{ patient.ptnLastname }}</strong> —
-        Geburtsdatum: {{ patient.ptnDOB }}
+<div class="container-fluid mt-3">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center gap-3">
+      
+      <div>
+        <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
+        <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
       </div>
     </div>
+    <button id="btnComments" class="btn btn-outline-primary btn-sm">
+      <i class="far fa-comments"></i> Kommentare
+      {% if comments %}<span id="commentsCount" class="badge bg-primary text-white">{{ comments|length }}</span>{% else %}<span id="commentsCount" class="badge bg-primary text-white d-none">0</span>{% endif %}
+    </button>
+  </div>
 
-    <div class="card-body">
-      <div class="row g-3">
-        <!-- Bilder hochladen -->
-        <div class="col-12 col-lg-6">
-          <div class="card h-100">
-            <div class="card-header bg-light">
-              <strong>Bilder hochladen</strong>
-            </div>
-            <div class="card-body">
-              <form method="POST" enctype="multipart/form-data" action="{% url 'upload_images' patient.id %}">
-                {% csrf_token %}
-                <label for="imageUpload" class="form-label">Dateien auswählen</label>
-                <input type="file"
-                       class="form-control mb-2"
-                       id="imageUpload"
-                       name="images"
-                       accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.heif,.heic"
-                       multiple
-                       required>
-                <button type="submit" class="btn btn-success btn-sm">
-                  Ausgewählte Bilder hochladen
-                </button>
-              </form>
-              <div class="form-text mt-2">Unterstützt: JPG, PNG, GIF, WEBP …</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Videos hochladen -->
-        <div class="col-12 col-lg-6">
-          <div class="card h-100">
-            <div class="card-header bg-light">
-              <strong>Videos hochladen</strong>
-            </div>
-            <div class="card-body">
-              <form method="POST" enctype="multipart/form-data" action="{% url 'upload_videos' patient.id %}">
-                {% csrf_token %}
-                <label for="videoUpload" class="form-label">Dateien auswählen</label>
-                <input type="file"
-                       class="form-control mb-2"
-                       id="videoUpload"
-                       name="videos"
-                       accept="video/*"
-                       multiple
-                       required>
-                <button type="submit" class="btn btn-success btn-sm">
-                  Ausgewählte Videos hochladen
-                </button>
-              </form>
-              <div class="form-text mt-2">Unterstützt: MP4, MOV, WEBM, AVI, MKV …</div>
-            </div>
-          </div>
-        </div>
-      </div> <!-- /row -->
-    </div> <!-- /card-body -->
-  </div> <!-- /card -->
-
-  <!-- Bilder: Auswahl-Löschen + Galerie -->
+  <!-- Uploader -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">
-      <strong>Bilder</strong>
+      <strong>Dateien hochladen</strong>
+      <span class="text-muted small ms-2">Bilder &amp; Videos • Drag &amp; Drop oder Klick</span>
     </div>
+    <div class="card-body">
+      <div id="dropzone" class="border border-2 border-dashed rounded-3 p-4 text-center"
+           style="border-style: dashed; cursor: pointer;">
+        <div class="mb-2"><i class="fas fa-cloud-upload-alt fa-2x text-primary"></i></div>
+        <div class="fw-semibold">Dateien hierher ziehen</div>
+        <div class="text-muted small">oder klicken, um auszuwählen (Bilder &amp; Videos)</div>
+        <input id="filePicker" type="file" accept="image/*,video/*" multiple hidden>
+      </div>
+
+      <!-- Upload queue / progress -->
+      <div id="uploadQueue" class="mt-3 d-none">
+        <div class="card">
+          <div class="card-header bg-light py-2">
+            <strong>Uploads</strong> <span class="text-muted small">Nicht schließen, bis alle Balken grün sind.</span>
+          </div>
+          <div class="card-body p-2">
+            <div id="queueItems" class="d-flex flex-column gap-2"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM u.a. (*HEIC-Vorschau je nach Browser).</div>
+    </div>
+  </div>
+
+  <!-- Images -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><strong>Bilder</strong></div>
     <div class="card-body">
       <form method="POST" action="{% url 'delete_images' patient.id %}">
         {% csrf_token %}
-        <button type="submit" class="btn btn-danger btn-sm mb-3">Ausgewählte Bilder löschen</button>
-
         <div class="row g-3">
-          {% for image in images %}
-            <div class="col-6 col-sm-4 col-md-3 col-lg-2 text-center">
-              <div class="card border-0 shadow-sm">
-                <img src="{{ image.image.url }}"
-                     alt="Patientenbild"
-                     class="card-img-top"
-                     onclick="openZoom('{{ image.image.url }}')">
-                <div class="card-body p-2">
-                  <div class="form-check">
+          {% if images %}
+            {% for image in images %}
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+              <div class="card h-100 border-0 shadow-sm">
+                <div class="position-relative">
+                  <img src="{{ image.image.url }}"
+                       class="w-100 img-thumb"
+                       style="height:140px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;"
+                       alt="Bild"
+                       onclick="openViewerIndex({{ forloop.counter0 }})">
+                  <div class="position-absolute top-0 start-0 p-1">
                     <input class="form-check-input" type="checkbox" name="selected_images" value="{{ image.id }}">
-                    <label class="form-check-label small">Auswählen</label>
                   </div>
-                  <a href="{% url 'delete_single_image' image.id %}" class="btn btn-sm btn-outline-danger mt-1">Löschen</a>
+                </div>
+                <div class="card-body p-2 d-flex justify-content-between">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ image.image.url }}" download title="Herunterladen"><i class="fas fa-download"></i></a>
+                  <a class="btn btn-sm btn-outline-danger" href="{% url 'delete_single_image' image.id %}" title="Löschen"><i class="fas fa-trash-alt"></i></a>
                 </div>
               </div>
             </div>
-          {% empty %}
-            <p class="text-muted mb-0">Keine Bilder gefunden.</p>
-          {% endfor %}
+            {% endfor %}
+          {% else %}
+            <div class="col-12 text-muted">Keine Bilder vorhanden.</div>
+          {% endif %}
+        </div>
+        <div class="text-end mt-3">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Ausgewählte löschen</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Videos: Auswahl-Löschen + Liste -->
+  <!-- Videos -->
   <div class="card shadow-sm">
-    <div class="card-header bg-white">
-      <strong>Videos</strong>
-    </div>
+    <div class="card-header bg-white"><strong>Videos</strong></div>
     <div class="card-body">
       <form method="POST" action="{% url 'delete_videos' patient.id %}">
         {% csrf_token %}
-        <button type="submit" class="btn btn-danger btn-sm mb-3">Ausgewählte Videos löschen</button>
-
         <div class="row g-3">
-          {% for v in videos %}
+          {% if videos %}
+            {% for v in videos %}
             <div class="col-12 col-sm-6 col-md-4 col-lg-3">
-              <div class="card border-0 shadow-sm p-2">
-                <video src="{{ v.file.url }}" controls style="width:100%; height:auto;"></video>
-                <div class="d-flex align-items-center justify-content-between mt-2">
-                  <div class="form-check">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="position-relative">
+                  <video src="{{ v.file.url }}" controls
+                         style="width:100%; height:180px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;"></video>
+                  <div class="position-absolute top-0 start-0 p-1">
                     <input class="form-check-input" type="checkbox" name="selected_videos" value="{{ v.id }}">
-                    <label class="form-check-label small">Auswählen</label>
                   </div>
-                  <a href="{% url 'delete_single_video' v.id %}" class="btn btn-sm btn-outline-danger">Löschen</a>
+                </div>
+                <div class="card-body p-2 d-flex justify-content-between">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ v.file.url }}" download title="Herunterladen"><i class="fas fa-download"></i></a>
+                  <a class="btn btn-sm btn-outline-danger" href="{% url 'delete_single_video' v.id %}" title="Löschen"><i class="fas fa-trash-alt"></i></a>
                 </div>
               </div>
             </div>
-          {% empty %}
-            <p class="text-muted mb-0">Keine Videos gefunden.</p>
-          {% endfor %}
+            {% endfor %}
+          {% else %}
+            <div class="col-12 text-muted">Keine Videos vorhanden.</div>
+          {% endif %}
+        </div>
+        <div class="text-end mt-3">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Ausgewählte löschen</button>
         </div>
       </form>
     </div>
   </div>
+</div>
 
-  <!-- Zoom-Panel (für Bilder) -->
-  <div id="zoomPanel" onclick="closeZoom(event)" style="cursor: grab;">
-    <img id="zoomImage" src="" alt="Vergrößertes Bild" />
+<!-- Comments Backdrop + Drawer (keeps left sidebar intact) -->
+<div id="commentsBackdrop" class="comments-backdrop"></div>
+<aside id="commentsDrawer" class="comments-drawer" aria-hidden="true">
+  <div class="drawer-header">
+    <div class="d-flex align-items-center gap-2">
+      <i class="far fa-comments"></i> &nbsp;&nbsp;
+      <strong>Kommentare</strong> &nbsp;&nbsp;
+      <span class="badge bg-secondary text-white" id="drawerCount"> {{ comments|length }}</span>
+    </div>
+    <button id="closeComments" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></button>
   </div>
 
-  <style>
-    /* Bild-Zoom Overlay */
-    #zoomPanel {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background-color: rgba(15, 15, 15, 0.9);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 1050;
-    }
-    #zoomImage {
-      max-width: 90%;
-      max-height: 90%;
-      transition: transform 0.2s ease;
-      cursor: zoom-out;
-      user-select: none;
-    }
-    .card-img-top {
-      height: 130px;
-      object-fit: cover;
-      border-radius: 5px;
-    }
-  </style>
+  <div id="commentsList" class="drawer-body">
+    {% for c in comments %}
+      <div class="msg {% if c.author_id == request.user.id %}mine{% endif %}">
+        <img class="avatar" src="{{ c.author.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}" alt="avatar">
+        <div>
+          <div class="bubble">{{ c.content|linebreaksbr }}</div>
+          <div class="meta">
+            {{ c.author.get_full_name|default:c.author.username }} ·
+            <span title="{{ c.created_at|date:'Y-m-d H:i' }}">{{ c.created_at|timesince }} ago</span>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="text-muted">Noch keine Kommentare.</div>
+    {% endfor %}
+  </div>
+
+  <div class="drawer-footer">
+    {% if can_comment %}
+    <form id="commentForm">
+      {% csrf_token %}
+      <textarea id="commentText" class="form-control mb-2" rows="1" maxlength="2000"
+                placeholder="Kommentar schreiben… (Enter = senden, Shift+Enter = Zeilenumbruch)"></textarea>
+      <div class="d-flex justify-content-between align-items-center">
+        <small class="text-muted">Nur Besitzer &amp; Freigegebene können kommentieren.</small>
+        <button class="btn btn-primary btn-sm" type="submit">Senden</button>
+      </div>
+    </form>
+    {% else %}
+      <div class="alert alert-warning mb-0">Kein Kommentarzugriff für diesen Patienten.</div>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- Fullscreen Image Viewer -->
+<div id="viewer" class="d-none">
+  <div id="viewerBackdrop"></div>
+  <div id="viewerToolbar" class="shadow">
+    <button class="btn btn-light btn-sm" onclick="zoomBy(1.2)" title="Vergrößern"><i class="fas fa-search-plus"></i></button>
+    <button class="btn btn-light btn-sm" onclick="zoomBy(1/1.2)" title="Verkleinern"><i class="fas fa-search-minus"></i></button>
+    <a id="viewerDownload" class="btn btn-light btn-sm" href="#" download title="Herunterladen"><i class="fas fa-download"></i></a>
+    <button class="btn btn-light btn-sm" onclick="closeViewer()" title="Schließen"><i class="fas fa-times"></i></button>
+  </div>
+  <img id="viewerImg" src="" alt="Vorschau">
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-  // --- Image Zoom Logic ---
-  let zoomLevel = 1;
-  const zoomImage = document.getElementById('zoomImage');
-  const zoomPanel = document.getElementById('zoomPanel');
+  // ---------- CSRF ----------
+  function getCookie(name){ const v=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return v? v.pop():''; }
+  const CSRF_TOKEN = getCookie('csrftoken');
 
-  let isDragging = false;
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let currentTranslateX = 0;
-  let currentTranslateY = 0;
+  // ---------- Comments Drawer ----------
+  const btnComments = document.getElementById('btnComments');
+  const drawer = document.getElementById('commentsDrawer');
+  const backdrop = document.getElementById('commentsBackdrop');
+  const closeBtn = document.getElementById('closeComments');
+  const commentsList = document.getElementById('commentsList');
+  const drawerCount = document.getElementById('drawerCount');
+  const headerCount = document.getElementById('commentsCount');
 
-  function openZoom(url) {
-    zoomImage.src = url;
-    zoomLevel = 1;
-    currentTranslateX = 0;
-    currentTranslateY = 0;
-    zoomImage.style.transform = `scale(${zoomLevel}) translate(0px, 0px)`;
-    zoomPanel.style.display = "flex";
-    zoomPanel.style.cursor = "grab";
+  function openDrawer(){ drawer.classList.add('open'); backdrop.classList.add('show'); drawer.setAttribute('aria-hidden','false'); scrollToBottom(); }
+  function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('show'); drawer.setAttribute('aria-hidden','true'); }
+  btnComments.addEventListener('click', openDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+  closeBtn.addEventListener('click', closeDrawer);
+
+  function scrollToBottom(){ commentsList.scrollTop = commentsList.scrollHeight; }
+
+  // Auto-grow textarea + Enter to send
+  const ta = document.getElementById('commentText');
+  if (ta) {
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; };
+    ta.addEventListener('input', grow); grow();
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.querySelector('#commentForm button[type="submit"]').click();
+      }
+    });
   }
-  function closeZoom(event) {
-    if (event.target.id === 'zoomPanel') {
-      zoomPanel.style.display = "none";
-      zoomImage.src = "";
-    }
-  }
-  zoomPanel.addEventListener('wheel', function (e) {
+
+  // Post comment (AJAX)
+  {% if can_comment %}
+  const form = document.getElementById('commentForm');
+  form.addEventListener('submit', function(e){
     e.preventDefault();
-    const delta = e.deltaY || e.detail || e.wheelDelta;
-    zoomLevel += delta > 0 ? -0.1 : 0.1;
-    zoomLevel = Math.max(1, Math.min(zoomLevel, 5));
-    if (zoomLevel === 1) {
-      currentTranslateX = 0;
-      currentTranslateY = 0;
+    const content = (ta.value || '').trim();
+    if (!content) return;
+
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
+    fd.append('content', content);
+
+    fetch("{% url 'add_comment' patient.id %}", { method:'POST', body: fd, headers:{ 'X-CSRFToken': CSRF_TOKEN }})
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) { alert(data.error || 'Kommentar konnte nicht gespeichert werden.'); return; }
+
+        // Build "mine" bubble
+        const item = document.createElement('div');
+        item.className = 'msg mine';
+        const myAvatar = "{{ request.user.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}";
+        const myName = "{{ request.user.get_full_name|default:request.user.username }}";
+        item.innerHTML = `
+          <img class="avatar" src="${myAvatar}" alt="avatar">
+          <div>
+            <div class="bubble"></div>
+            <div class="meta">${myName} · <span>soeben</span></div>
+          </div>`;
+        item.querySelector('.bubble').textContent = data.content;
+
+        commentsList.appendChild(item);
+        ta.value = ''; ta.dispatchEvent(new Event('input'));
+        scrollToBottom();
+
+        // bump counters
+        const newCount = (parseInt(drawerCount.textContent || '0', 10) + 1);
+        drawerCount.textContent = newCount;
+        headerCount.textContent = newCount;
+        headerCount.classList.remove('d-none');
+      })
+      .catch(() => alert('Netzwerkfehler beim Senden des Kommentars.'));
+  });
+  {% endif %}
+
+  // ---------- Drag & Drop Uploads (sequential with per-file progress) ----------
+  const dropzone = document.getElementById('dropzone');
+  const filePicker = document.getElementById('filePicker');
+  const uploadQueue = document.getElementById('uploadQueue');
+  const queueItems = document.getElementById('queueItems');
+
+  dropzone.addEventListener('click', ()=> filePicker.click());
+  dropzone.addEventListener('dragover', (e)=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e)=>{ e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+  filePicker.addEventListener('change', (e)=> handleFiles(e.target.files));
+
+  function handleFiles(fileList){
+    const files = Array.from(fileList).filter(f=> f.type.startsWith('image/') || f.type.startsWith('video/'));
+    if(!files.length) return;
+    uploadQueue.classList.remove('d-none');
+    processQueue(files);
+  }
+
+  async function processQueue(files){
+    for (const file of files){
+      const row = addQueueItem(file);
+      try{
+        await uploadFileXHR(file, pct=> updateQueueItem(row, pct));
+        markQueueItemDone(row);
+      }catch(err){
+        markQueueItemError(row, err.message || 'Fehler');
+      }
     }
-    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+    window.location.reload();
+  }
+
+  function addQueueItem(file){
+    const row = document.createElement('div');
+    row.className = 'uq-item border rounded p-2';
+    row.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="file-meta"><strong>${escapeHtml(file.name)}</strong>
+          <span class="text-muted">(${file.type || 'Datei'}, ${(file.size/1024/1024).toFixed(1)} MB)</span>
+        </div>
+        <div class="status small text-muted">Wartet…</div>
+      </div>
+      <div class="progress mt-2"><div class="progress-bar" role="progressbar" style="width:0%"></div></div>`;
+    queueItems.appendChild(row);
+    return row;
+  }
+  function updateQueueItem(row, pct){
+    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
+    bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    status.textContent = `Hochladen… ${pct.toFixed(0)}%`;
+  }
+  function markQueueItemDone(row){
+    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
+    bar.classList.add('bg-success'); bar.style.width='100%'; status.textContent='Fertig';
+  }
+  function markQueueItemError(row,msg){
+    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
+    bar.classList.add('bg-danger'); status.textContent='Fehler: ' + msg;
+  }
+  function uploadFileXHR(file, onProgress){
+    return new Promise((resolve, reject)=>{
+      const isImage = file.type.startsWith('image/');
+      const url = isImage ? "{% url 'upload_images' patient.id %}" : "{% url 'upload_videos' patient.id %}";
+      const field = isImage ? "images" : "videos";
+
+      const xhr=new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.setRequestHeader('X-CSRFToken', CSRF_TOKEN);
+
+      xhr.upload.addEventListener('progress', (e)=>{ if(e.lengthComputable && onProgress){ onProgress((e.loaded/e.total)*100); }});
+      xhr.onreadystatechange = function(){
+        if(xhr.readyState===4){
+          if(xhr.status>=200 && xhr.status<300) resolve();
+          else reject(new Error('HTTP ' + xhr.status));
+        }
+      };
+
+      const fd=new FormData();
+      fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
+      fd.append(field, file);
+      xhr.send(fd);
+    });
+  }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+
+  // ---------- Fullscreen Viewer (zoom, pan, keyboard nav) ----------
+  let vOpen=false, s=1, tx=0, ty=0;
+  let IMAGE_SRCS = Array.from(document.querySelectorAll('.img-thumb')).map(el => el.getAttribute('src'));
+  let CURRENT_INDEX = 0;
+
+  const viewer=document.getElementById('viewer');
+  const viewerImg=document.getElementById('viewerImg');
+  const viewerDownload=document.getElementById('viewerDownload');
+
+  function collectImageSrcs(){ IMAGE_SRCS = Array.from(document.querySelectorAll('.img-thumb')).map(el => el.getAttribute('src')); }
+
+  function openViewerIndex(i){
+    collectImageSrcs();
+    if(!IMAGE_SRCS.length) return;
+    CURRENT_INDEX = Math.max(0, Math.min(i, IMAGE_SRCS.length-1));
+    openViewer(IMAGE_SRCS[CURRENT_INDEX]);
+  }
+  function openViewer(src){
+    vOpen=true; s=1; tx=0; ty=0;
+    viewerImg.src=src; viewerDownload.href=src; setTransform(); viewer.classList.remove('d-none');
+  }
+  function closeViewer(){ vOpen=false; viewer.classList.add('d-none'); viewerImg.src=''; }
+
+  function setTransform(){ viewerImg.style.setProperty('--s', s); viewerImg.style.setProperty('--tx', tx+'px'); viewerImg.style.setProperty('--ty', ty+'px'); }
+  function zoomBy(f){ s=Math.max(1, Math.min(8, s*f)); if(s===1){ tx=0; ty=0; } setTransform(); }
+
+  viewer.addEventListener('wheel', (e)=>{ if(!vOpen) return; e.preventDefault(); const d=e.deltaY||e.wheelDelta; zoomBy(d>0?1/1.15:1.15); }, {passive:false});
+  let dragging=false, sx=0, sy=0;
+  viewerImg.addEventListener('mousedown', (e)=>{ if(s===1) return; dragging=true; sx=e.clientX; sy=e.clientY; viewer.classList.add('grabbing'); });
+  window.addEventListener('mousemove', (e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; tx+=dx; ty+=dy; setTransform(); });
+  window.addEventListener('mouseup', ()=>{ dragging=false; viewer.classList.remove('grabbing'); });
+
+  let touching=false, prevDist=0;
+  viewerImg.addEventListener('touchstart', (e)=>{ if(e.touches.length===1 && s>1){ touching=true; sx=e.touches[0].clientX; sy=e.touches[0].clientY; } else if(e.touches.length===2){ touching=false; prevDist=dist(e.touches[0], e.touches[1]); } }, {passive:false});
+  viewerImg.addEventListener('touchmove', (e)=>{ if(e.touches.length===1 && s>1 && touching){ const cx=e.touches[0].clientX, cy=e.touches[0].clientY; const dx=cx-sx, dy=cy-sy; sx=cx; sy=cy; tx+=dx; ty+=dy; setTransform(); } else if(e.touches.length===2){ e.preventDefault(); const d=dist(e.touches[0], e.touches[1]); const f=d/(prevDist||d); prevDist=d; zoomBy(f); } }, {passive:false});
+  viewerImg.addEventListener('touchend', ()=>{ touching=false; });
+  function dist(a,b){ const dx=a.clientX-b.clientX, dy=a.clientY-b.clientY; return Math.hypot(dx,dy); }
+
+  document.getElementById('viewerBackdrop').addEventListener('click', closeViewer);
+
+  window.addEventListener('keydown', (e)=>{
+    if(!vOpen) return;
+    if(e.key==='Escape'){ e.preventDefault(); closeViewer(); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX+1)%IMAGE_SRCS.length; openViewer(IMAGE_SRCS[CURRENT_INDEX]); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX-1+IMAGE_SRCS.length)%IMAGE_SRCS.length; openViewer(IMAGE_SRCS[CURRENT_INDEX]); }
+    else if(e.key==='d' || e.key==='D'){ e.preventDefault(); viewerDownload.click(); }
   });
-  zoomImage.addEventListener('mousedown', (e) => {
-    if (zoomLevel === 1) return;
-    isDragging = true;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    zoomPanel.style.cursor = "grabbing";
-  });
-  window.addEventListener('mouseup', () => {
-    if (isDragging) {
-      isDragging = false;
-      zoomPanel.style.cursor = "grab";
-    }
-  });
-  window.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    currentTranslateX += dx;
-    currentTranslateY += dy;
-    zoomImage.style.transform = `scale(${zoomLevel}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
-  });
+
+  // expose for thumbnails
+  window.openViewerIndex = openViewerIndex;
 </script>
 {% endblock %}
