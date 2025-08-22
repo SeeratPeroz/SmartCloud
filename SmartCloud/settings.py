@@ -177,3 +177,15 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024      # 10MB
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+# settings.py
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.ionos.de"            # or "smtp.ionos.com" depending on your contract
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False                    # TLS for port 587
+EMAIL_USE_SSL = True
+EMAIL_HOST_USER = "software-feedback@dens-health-management.com"   # a real mailbox at your domain
+EMAIL_HOST_PASSWORD = "feedback001!!!123"  # the password for the mailbox
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

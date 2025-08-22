@@ -21,28 +21,139 @@
   </li>
 
   <!-- Divider -->
-  <hr class="sidebar-divider">
+  <hr class="sidebar-divider" />
 
-  <!-- Scope filters -->
+  <!-- Feedback (opens modal) -->
   <li class="nav-item">
-    <a class="nav-link" href="{% url 'index' %}?scope=all">
-      <i class="fas fa-users"></i>
-      <span>Alle</span>
+    <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#feedbackModal">
+      <i class="fas fa-comment-dots"></i>
+      <span>Feedback / Problem melden</span>
     </a>
   </li>
-  <li class="nav-item">
-    <a class="nav-link" href="{% url 'index' %}?scope=mine">
-      <i class="fas fa-user"></i>
-      <span>Meine</span>
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" href="{% url 'index' %}?scope=shared">
-      <i class="fas fa-user-friends"></i>
-      <span>Mit mir geteilt</span>
-    </a>
-  </li>
-
-  <!-- Divider -->
-  <hr class="sidebar-divider d-none d-md-block" />
 </ul>
+
+<!-- Feedback Modal -->
+<div class="modal fade" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="feedbackForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="feedbackModalLabel">Feedback / Problem melden</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+
+        <div class="modal-body">
+          <div id="fbAlert" class="alert d-none" role="alert"></div>
+
+          <div class="mb-3">
+            <label for="fbType" class="form-label">Typ</label>
+            <select id="fbType" name="type" class="form-select">
+              <option value="Bug">Fehler (Bug)</option>
+              <option value="Feature">Feature-Wunsch</option>
+              <option value="UX">Benutzerfreundlichkeit / Design</option>
+              <option value="Other">Sonstiges</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="fbSubject" class="form-label">Betreff</label>
+            <input id="fbSubject" name="subject" type="text" class="form-control" placeholder="Kurzer Betreff" value="Website-Feedback">
+          </div>
+
+          <div class="mb-3">
+            <label for="fbMessage" class="form-label">Nachricht</label>
+            <textarea id="fbMessage" name="message" class="form-control" rows="4" required placeholder="Beschreiben Sie das Problem oder Feedback..."></textarea>
+          </div>
+
+          <div class="mb-3">
+            <label for="fbFiles" class="form-label">Screenshots / Bilder (optional)</label>
+            <input id="fbFiles" name="attachments" type="file" class="form-control" accept="image/*" multiple>
+            <div class="form-text">Bis zu 5 Bilder; max. 10 MB pro Datei.</div>
+            <div id="fbPreviews" class="d-flex flex-wrap gap-2 mt-2"></div>
+          </div>
+
+          <input type="hidden" name="page_url" value="{{ request.path }}">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+          <button id="fbSendBtn" type="submit" class="btn btn-primary">
+            <span class="send-text">Senden</span>
+            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // ---- CSRF helper ----
+  function getCookie(name){
+    const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+  const CSRF_TOKEN = getCookie('csrftoken');
+
+  // ---- Elements ----
+  const form = document.getElementById('feedbackForm');
+  const filesInput = document.getElementById('fbFiles');
+  const sendBtn = document.getElementById('fbSendBtn');
+  const alertBox = document.getElementById('fbAlert');
+
+  function setSending(on){
+    if (!sendBtn) return;
+    const spinner = sendBtn.querySelector('.spinner-border');
+    const text = sendBtn.querySelector('.send-text');
+    if (on){ spinner?.classList.remove('d-none'); text.textContent = 'Senden...'; sendBtn.disabled = true; }
+    else   { spinner?.classList.add('d-none');    text.textContent = 'Senden';     sendBtn.disabled = false; }
+  }
+  function showAlert(kind, msg){
+    alertBox.className = 'alert alert-' + kind;
+    alertBox.textContent = msg;
+    alertBox.classList.remove('d-none');
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setSending(true);
+    alertBox.classList.add('d-none');
+
+    const fd = new FormData(form);
+    const files = Array.from(filesInput?.files || []);
+    fd.delete('attachments');
+    files.slice(0,5).forEach(f => fd.append('attachments', f));
+
+    try {
+      const res = await fetch("{% url 'send_feedback' %}", {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+
+      showAlert('success', 'Danke! Ihr Feedback wurde gesendet.');
+      form.reset();
+      document.getElementById('fbPreviews')?.replaceChildren();
+
+      setTimeout(() => {
+        const modalEl = document.getElementById('feedbackModal');
+        if (window.bootstrap?.Modal) {
+          const inst = bootstrap.Modal.getOrCreateInstance(modalEl);
+          inst.hide();
+        } else if (window.jQuery && typeof jQuery(modalEl).modal === 'function') {
+          jQuery(modalEl).modal('hide');
+        }
+      }, 900);
+    } catch (err) {
+      showAlert('danger', 'Senden fehlgeschlagen: ' + err.message);
+    } finally {
+      setSending(false);
+    }
+  });
+});
+</script>
+

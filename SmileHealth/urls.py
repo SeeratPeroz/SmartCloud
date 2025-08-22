@@ -38,6 +38,14 @@ urlpatterns = [
     path('patient/<int:patient_id>/videos/delete/', views.delete_videos, name='delete_videos'),
     path('video/<int:video_id>/delete/', views.delete_single_video, name='delete_single_video'),
 
+    # 3D Model routes
+    path('patient/<int:patient_id>/upload_models/', views.upload_models, name='upload_models'),
+    path('patient/<int:patient_id>/delete_models/', views.delete_models, name='delete_models'),
+    path('model/<int:model_id>/delete/', views.delete_single_model, name='delete_single_model'),
+
+    # Feedback routes
+    path('feedback/send/', views.send_feedback, name='send_feedback'),
+
 
 ]
 if settings.DEBUG:

@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from .models import Patient, Image, Message,Profile,Video,Comment
+from .models import Patient, Image, Message,Profile,Video,Comment, Model3D
 from .models import Profile  # Your profile model
 from django.contrib.auth import authenticate, login as auth_login, logout
 from django.contrib import messages
@@ -10,6 +10,9 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth import update_session_auth_hash
 from django.http import HttpResponseForbidden
 from django.db.models import Q
+from django.core.exceptions import ValidationError
+from django.conf import settings
+from django.core.mail import EmailMessage
 
 
 
@@ -165,14 +168,14 @@ def _can_access_patient(user, patient):
 @login_required
 def patient_image(request, patient_id):
     patient = get_object_or_404(Patient, id=patient_id)
-    
-  
-    
+    # Fetch related 3D models
+    models3d = Model3D.objects.filter(ptnID=patient).order_by('-id')
     images = Image.objects.filter(ptnID=patient)
     videos = patient.videos.all().order_by('-uploaded_at')  # NEW
     comments = Comment.objects.filter(patient=patient).select_related('author', 'author__profile')
     return render(request, 'patientImage.html', {'patient': patient, 'images': images, 'videos': videos, 'comments': comments,
-    'can_comment': _can_access_patient(request.user, patient)
+    'can_comment': _can_access_patient(request.user, patient),
+    'models3d': models3d
 })
 
 @require_POST
@@ -305,3 +308,77 @@ def delete_single_video(request, video_id):
     pid = video.ptnID.id
     video.delete()
     return redirect('patientImage', patient_id=pid)
+
+
+
+
+# 3D Model Upload
+@login_required
+@require_POST
+def upload_models(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    files = request.FILES.getlist('models')
+    # An optional single thumbnail per file can be sent as 'thumb' (client-side generated)
+    # but to keep it simple we accept none and show a placeholder; you can add later.
+
+    for f in files:
+        name = (f.name or '').lower()
+        ctype = (f.content_type or '').lower()
+        if not (name.endswith('.stl') or 'model/stl' in ctype or 'application/sla' in ctype):
+            continue  # skip non-stl silently
+        Model3D.objects.create(ptnID=patient, usrID=request.user, file=f)
+
+    return redirect('patientImage', patient_id=patient.id)
+
+@login_required
+@require_POST
+def delete_models(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    ids = request.POST.getlist('selected_models')
+    Model3D.objects.filter(ptnID=patient, id__in=ids, usrID=request.user).delete()
+    return redirect('patientImage', patient_id=patient_id)
+
+@login_required
+def delete_single_model(request, model_id):
+    m = get_object_or_404(Model3D, id=model_id, usrID=request.user)
+    pid = m.ptnID.id
+    m.delete()
+    return redirect('patientImage', patient_id=pid)
+
+
+# Feedback submission
+@login_required
+@require_POST
+def send_feedback(request):
+    fb_type  = request.POST.get('type', 'Other')
+    subject  = request.POST.get('subject', 'Website-Feedback')
+    message  = (request.POST.get('message') or '').strip()
+    page_url = request.POST.get('page_url') or request.META.get('HTTP_REFERER', '')
+
+    if not message:
+        return JsonResponse({'ok': False, 'error': 'Nachricht darf nicht leer sein.'}, status=400)
+
+    user = request.user
+    who  = user.get_full_name() or user.username
+    body = (
+        f"Feedback-Typ: {fb_type}\n"
+        f"Von: {who} (id={user.id}, username={user.username}, email={user.email})\n"
+        f"Seite: {page_url}\n\n"
+        f"Inhalt:\n{message}\n"
+    )
+
+    email = EmailMessage(
+        subject=f"[CleverImplant] {subject}",
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=["software-feedback@dens-health-management.com"],
+        reply_to=[user.email] if user.email else None,
+    )
+
+    # Attach up to 5 images ≤10MB each
+    for f in request.FILES.getlist('attachments')[:5]:
+        if f.content_type.startswith('image/') and f.size <= 10 * 1024 * 1024:
+            email.attach(f.name, f.read(), f.content_type)
+
+    email.send(fail_silently=False)
+    return JsonResponse({'ok': True})

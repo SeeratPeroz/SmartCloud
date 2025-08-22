@@ -41,7 +41,7 @@
   .msg.mine .bubble { background: #e7f1ff; }
   .msg.mine .meta { text-align: right; }
 
-  /* Fullscreen Viewer */
+  /* Fullscreen Image Viewer */
   #viewer.d-none { display:none; }
   #viewer { position: fixed; inset: 0; z-index: 1060; display:flex; align-items:center; justify-content:center; }
   #viewerBackdrop { position:absolute; inset:0; background:rgba(0,0,0,.85); }
@@ -52,6 +52,14 @@
   }
   #viewer.grabbing #viewerImg { cursor: grabbing; }
   #viewerToolbar { position: absolute; top:12px; right:12px; display:flex; gap:8px; border-radius:8px; background:#fff; padding:6px; }
+
+  /* STL: card placeholder + modal canvas */
+  .stl-thumb {
+    display:flex; align-items:center; justify-content:center;
+    font-weight:600; color:#0d6efd; background:#eef5ff;
+    border:1px dashed #cfe2ff; height:140px; border-radius:.25rem .25rem 0 0;
+  }
+  #stlCanvas { width:100%; height:70vh; background:#111; }
 
   @media (max-width: 576px) {
     .comments-drawer { width: 100%; right: -100%; }
@@ -65,7 +73,6 @@
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center gap-3">
-      
       <div>
         <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
         <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
@@ -77,19 +84,20 @@
     </button>
   </div>
 
-  <!-- Uploader -->
+  <!-- Uploader (now accepts STL too) -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">
       <strong>Dateien hochladen</strong>
-      <span class="text-muted small ms-2">Bilder &amp; Videos • Drag &amp; Drop oder Klick</span>
+      <span class="text-muted small ms-2">Bilder, Videos &amp; STL • Drag &amp; Drop oder Klick</span>
     </div>
     <div class="card-body">
       <div id="dropzone" class="border border-2 border-dashed rounded-3 p-4 text-center"
            style="border-style: dashed; cursor: pointer;">
         <div class="mb-2"><i class="fas fa-cloud-upload-alt fa-2x text-primary"></i></div>
         <div class="fw-semibold">Dateien hierher ziehen</div>
-        <div class="text-muted small">oder klicken, um auszuwählen (Bilder &amp; Videos)</div>
-        <input id="filePicker" type="file" accept="image/*,video/*" multiple hidden>
+        <div class="text-muted small">oder klicken, um auszuwählen</div>
+        <!-- accept extended to STL -->
+        <input id="filePicker" type="file" accept="image/*,video/*,.stl,model/stl,application/sla" multiple hidden>
       </div>
 
       <!-- Upload queue / progress -->
@@ -104,7 +112,7 @@
         </div>
       </div>
 
-      <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM u.a. (*HEIC-Vorschau je nach Browser).</div>
+      <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM, STL. (*HEIC-Vorschau je nach Browser)</div>
     </div>
   </div>
 
@@ -148,7 +156,7 @@
   </div>
 
   <!-- Videos -->
-  <div class="card shadow-sm">
+  <div class="card shadow-sm mb-4">
     <div class="card-header bg-white"><strong>Videos</strong></div>
     <div class="card-body">
       <form method="POST" action="{% url 'delete_videos' patient.id %}">
@@ -174,6 +182,56 @@
             {% endfor %}
           {% else %}
             <div class="col-12 text-muted">Keine Videos vorhanden.</div>
+          {% endif %}
+        </div>
+        <div class="text-end mt-3">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Ausgewählte löschen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3D-Modelle (.stl) -->
+  <div class="card shadow-sm mb-4" id="models3d">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between">
+      <strong>3D-Modelle (.stl)</strong>
+      <!-- Quick anchor to scroll back to uploader if needed -->
+      <a class="btn btn-outline-secondary btn-sm" href="#dropzone">Neu hochladen</a>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/patient/{{ patient.id }}/delete_models/">
+        {% csrf_token %}
+        <div class="row g-3">
+          {% if models3d %}
+            {% for m in models3d %}
+            <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+              <div class="card h-100 border-0 shadow-sm">
+                <div class="position-relative">
+                  {% if m.thumbnail %}
+                    <img src="{{ m.thumbnail.url }}" class="w-100" style="height:140px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;" alt="3D Thumbnail">
+                  {% else %}
+                    <div class="stl-thumb">
+                      <span><i class="fas fa-cube me-2"></i>3D</span>
+                    </div>
+                  {% endif %}
+                  <div class="position-absolute top-0 start-0 p-1">
+                    <input class="form-check-input" type="checkbox" name="selected_models" value="{{ m.id }}">
+                  </div>
+                </div>
+                <div class="card-body p-2 d-flex justify-content-between">
+                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="openStlViewer('{{ m.file.url|escapejs }}')" title="Vorschau">
+                    <i class="fas fa-vr-cardboard"></i>
+                  </button>
+                  <div class="d-flex gap-1">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ m.file.url }}" download title="Herunterladen"><i class="fas fa-download"></i></a>
+                    <a class="btn btn-sm btn-outline-danger" href="/model/{{ m.id }}/delete/" title="Löschen"><i class="fas fa-trash-alt"></i></a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="col-12 text-muted">Keine 3D-Modelle vorhanden.</div>
           {% endif %}
         </div>
         <div class="text-end mt-3">
@@ -241,6 +299,21 @@
   </div>
   <img id="viewerImg" src="" alt="Vorschau">
 </div>
+
+<!-- STL Viewer Modal -->
+<div class="modal fade" id="stlModal" tabindex="-1" aria-labelledby="stlModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="stlModalLabel">3D Vorschau (.stl)</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="stlCanvas"></div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -296,7 +369,6 @@
       .then(data => {
         if (!data.ok) { alert(data.error || 'Kommentar konnte nicht gespeichert werden.'); return; }
 
-        // Build "mine" bubble
         const item = document.createElement('div');
         item.className = 'msg mine';
         const myAvatar = "{{ request.user.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}";
@@ -313,7 +385,6 @@
         ta.value = ''; ta.dispatchEvent(new Event('input'));
         scrollToBottom();
 
-        // bump counters
         const newCount = (parseInt(drawerCount.textContent || '0', 10) + 1);
         drawerCount.textContent = newCount;
         headerCount.textContent = newCount;
@@ -323,7 +394,7 @@
   });
   {% endif %}
 
-  // ---------- Drag & Drop Uploads (sequential with per-file progress) ----------
+  // ---------- Drag & Drop Uploads (images/videos/STL) ----------
   const dropzone = document.getElementById('dropzone');
   const filePicker = document.getElementById('filePicker');
   const uploadQueue = document.getElementById('uploadQueue');
@@ -336,7 +407,7 @@
   filePicker.addEventListener('change', (e)=> handleFiles(e.target.files));
 
   function handleFiles(fileList){
-    const files = Array.from(fileList).filter(f=> f.type.startsWith('image/') || f.type.startsWith('video/'));
+    const files = Array.from(fileList); // allow image/video/stl
     if(!files.length) return;
     uploadQueue.classList.remove('d-none');
     processQueue(files);
@@ -382,11 +453,26 @@
     const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
     bar.classList.add('bg-danger'); status.textContent='Fehler: ' + msg;
   }
+
   function uploadFileXHR(file, onProgress){
     return new Promise((resolve, reject)=>{
+      const lname = (file.name || '').toLowerCase();
       const isImage = file.type.startsWith('image/');
-      const url = isImage ? "{% url 'upload_images' patient.id %}" : "{% url 'upload_videos' patient.id %}";
-      const field = isImage ? "images" : "videos";
+      const isVideo = file.type.startsWith('video/');
+      const isStl   = lname.endsWith('.stl') || file.type === 'model/stl' || file.type === 'application/sla';
+
+      const URL_UPLOAD_IMAGES = "{% url 'upload_images' patient.id %}";
+      const URL_UPLOAD_VIDEOS = "{% url 'upload_videos' patient.id %}";
+      const URL_UPLOAD_MODELS = "{% url 'upload_models' patient.id %}";
+
+      const url   = isImage ? URL_UPLOAD_IMAGES :
+                    isVideo ? URL_UPLOAD_VIDEOS :
+                    isStl   ? URL_UPLOAD_MODELS : null;
+      const field = isImage ? "images" :
+                    isVideo ? "videos" :
+                    isStl   ? "models" : null;
+
+      if (!url || !field) { reject(new Error('Nicht unterstützter Dateityp')); return; }
 
       const xhr=new XMLHttpRequest();
       xhr.open('POST', url);
@@ -408,7 +494,7 @@
   }
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
 
-  // ---------- Fullscreen Viewer (zoom, pan, keyboard nav) ----------
+  // ---------- Fullscreen Image Viewer (zoom, pan, keyboard nav) ----------
   let vOpen=false, s=1, tx=0, ty=0;
   let IMAGE_SRCS = Array.from(document.querySelectorAll('.img-thumb')).map(el => el.getAttribute('src'));
   let CURRENT_INDEX = 0;
@@ -458,5 +544,325 @@
 
   // expose for thumbnails
   window.openViewerIndex = openViewerIndex;
+
+  // NOTE: Removed old "Lazy STL Viewer" that used three.min.js (deprecated).
+  // The new ES-module viewer is defined in the next <script type="module">.
 </script>
+
+<!-- Modern STL viewer using ES modules (Three r150+) -->
+<script type="module">
+  // Define global function used by your buttons: onclick="openStlViewer('...')"
+  window.openStlViewer = async (url) => {
+    // Dynamically import ES modules (fast, cached after first load)
+    const THREE = await import('https://unpkg.com/three@0.158.0/build/three.module.js');
+    const { OrbitControls } = await import('https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js');
+    const { STLLoader }   = await import('https://unpkg.com/three@0.158.0/examples/jsm/loaders/STLLoader.js');
+
+    const el = document.getElementById('stlCanvas');
+    el.innerHTML = '';
+
+    const scene   = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+
+    const camera  = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    el.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(1, 1, 1);
+    scene.add(dir);
+
+    // Load STL
+    const loader = new STLLoader();
+    loader.load(url, (geom) => {
+      const mat  = new THREE.MeshPhongMaterial({ color: 0x29a3ff, specular: 0x111111, shininess: 40 });
+      const mesh = new THREE.Mesh(geom, mat);
+      scene.add(mesh);
+
+      // Center & fit
+      const box    = new THREE.Box3().setFromObject(mesh);
+      const size   = box.getSize(new THREE.Vector3()).length();
+      const center = box.getCenter(new THREE.Vector3());
+      mesh.position.sub(center);
+
+      camera.position.set(size * 0.6, size * 0.6, size * 0.8);
+      controls.update();
+    });
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('stlModal'));
+    modal.show();
+
+    // Resize
+    const ro = new ResizeObserver(() => {
+      camera.aspect = el.clientWidth / el.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(el.clientWidth, el.clientHeight);
+    });
+    ro.observe(el);
+
+    // Render loop
+    (function render() {
+      requestAnimationFrame(render);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+  };
+</script>
+
+<!-- Import map -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  // -- Helpers for Bootstrap 4/5 compatibility --
+  function showModal(el) {
+    if (window.bootstrap && bootstrap.Modal) {
+      // BS ≥5
+      const inst = (bootstrap.Modal.getOrCreateInstance)
+        ? bootstrap.Modal.getOrCreateInstance(el)
+        : new bootstrap.Modal(el);
+      inst.show();
+      return inst;
+    } else if (window.jQuery && typeof jQuery(el).modal === 'function') {
+      // BS4 (jQuery)
+      jQuery(el).modal('show');
+      return null;
+    }
+  }
+  function hideModal(el) {
+    if (window.bootstrap && bootstrap.Modal) {
+      let inst = null;
+      if (typeof bootstrap.Modal.getInstance === 'function') {
+        inst = bootstrap.Modal.getInstance(el);
+      }
+      if (!inst) {
+        try { inst = new bootstrap.Modal(el); } catch(e) {}
+      }
+      if (inst && typeof inst.hide === 'function') inst.hide();
+    } else if (window.jQuery && typeof jQuery(el).modal === 'function') {
+      jQuery(el).modal('hide');
+    }
+  }
+
+  // -- Lazy imports (cached) --
+  let _mods;
+  async function useThree() {
+    if (_mods) return _mods;
+    const THREE              = await import('three');
+    const { OrbitControls }  = await import('three/addons/controls/OrbitControls.js');
+    const { STLLoader }      = await import('three/addons/loaders/STLLoader.js');
+    const { RoomEnvironment }= await import('three/addons/environments/RoomEnvironment.js');
+    _mods = { THREE, OrbitControls, STLLoader, RoomEnvironment };
+    return _mods;
+  }
+
+  // -- Main viewer (color picker + fullscreen + cleanup) --
+  window.openStlViewer = async (url) => {
+    try {
+      const { THREE, OrbitControls, STLLoader, RoomEnvironment } = await useThree();
+      const el = document.getElementById('stlCanvas');
+      const modalEl = document.getElementById('stlModal');
+      if (!el || !modalEl) return;
+
+      el.innerHTML = '';
+      el.style.position = 'relative';
+
+      // Renderer
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(el.clientWidth, el.clientHeight);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      renderer.physicallyCorrectLights = true;
+      el.appendChild(renderer.domElement);
+
+      // Scene
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111111);
+      const camera = new THREE.PerspectiveCamera(60, el.clientWidth/el.clientHeight, 0.1, 5000);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
+      const dir1 = new THREE.DirectionalLight(0xffffff, 0.9); dir1.position.set(2,2,1); scene.add(dir1);
+      const dir2 = new THREE.DirectionalLight(0xffffff, 0.3); dir2.position.set(-2,1,-1); scene.add(dir2);
+
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+      // Overlay
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);color:#fff;font:600 14px system-ui';
+      overlay.textContent = 'Laden…';
+      el.appendChild(overlay);
+
+      // Toolbar
+      const bar = document.createElement('div');
+      bar.style.cssText = 'position:absolute;top:12px;right:12px;display:flex;gap:8px;background:#ffffffcc;padding:6px;border-radius:8px;backdrop-filter:blur(4px)';
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      const savedColor = localStorage.getItem('stlColor') || '#d2b48c';
+      colorInput.value = savedColor;
+      colorInput.title = 'Farbe wählen';
+      const mkBtn = (txt,t)=>{const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=t;b.style.cssText='border:1px solid #ddd;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer';return b;};
+      const btnFS   = mkBtn('⤢','Vollbild');
+      const btnReset= mkBtn('⟲','Ansicht zurücksetzen');
+      const btnClose= mkBtn('✕','Schließen');
+      bar.append(colorInput, btnFS, btnReset, btnClose);
+      el.appendChild(bar);
+
+      // Load STL
+      const loader = new STLLoader();
+      let mesh, material;
+      loader.load(
+        url,
+        (geom) => {
+          overlay.remove();
+          if (geom.computeVertexNormals) geom.computeVertexNormals();
+          const hasVertexColors = !!(geom.getAttribute && geom.getAttribute('color'));
+          material = new THREE.MeshStandardMaterial({
+            vertexColors: hasVertexColors,
+            color: hasVertexColors ? undefined : savedColor,
+            roughness: 0.55, metalness: 0.05, envMapIntensity: 0.8
+          });
+          mesh = new THREE.Mesh(geom, material);
+          scene.add(mesh);
+
+          const box = new THREE.Box3().setFromObject(mesh);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          mesh.position.sub(center);
+
+          const maxDim = Math.max(size.x, size.y, size.z) || 100;
+          const dist = maxDim * 1.6;
+          camera.position.set(dist, dist, dist);
+          controls.target.set(0,0,0);
+          controls.update();
+        },
+        (xhr) => { if (xhr.lengthComputable) overlay.textContent = `Laden… ${((xhr.loaded/xhr.total)*100|0)}%`; },
+        (err) => { console.error(err); overlay.textContent='Fehler beim Laden'; setTimeout(()=>overlay.remove(),1500); }
+      );
+
+      // Actions
+      colorInput.addEventListener('input', () => {
+        localStorage.setItem('stlColor', colorInput.value);
+        if (material) { material.vertexColors = false; material.color.set(colorInput.value); material.needsUpdate = true; }
+      });
+      btnReset.addEventListener('click', () => {
+        if (!mesh) return;
+        const box = new THREE.Box3().setFromObject(mesh);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 100;
+        const dist = maxDim * 1.6;
+        camera.position.set(dist, dist, dist);
+        controls.target.set(0,0,0);
+        controls.update();
+      });
+      btnFS.addEventListener('click', () => {
+        const target = el;
+        if (!document.fullscreenElement) target.requestFullscreen?.();
+        else document.exitFullscreen?.();
+      });
+      btnClose.addEventListener('click', () => hideModal(modalEl));
+
+      // Show modal (BS4/BS5)
+      showModal(modalEl);
+
+      // Resize + render + cleanup
+      const ro = new ResizeObserver(() => {
+        camera.aspect = el.clientWidth / el.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(el.clientWidth, el.clientHeight);
+      });
+      ro.observe(el);
+
+      let alive = true;
+      (function animate(){ if(!alive) return; requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
+
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        alive = false;
+        ro.disconnect();
+        renderer.dispose();                 // free GPU
+        while (el.firstChild) el.removeChild(el.firstChild);
+      }, { once:true });
+
+    } catch (e) {
+      console.error('Viewer init failed', e);
+      alert('3D-Viewer konnte nicht geladen werden.');
+    }
+  };
+
+  // -- Real STL thumbnails (unchanged) --
+  let _thumbInit = false;
+  async function renderThumb(imgEl) {
+    const url = imgEl.dataset.stl;
+    if (!url) return;
+    const { THREE, STLLoader } = await useThree();
+
+    const w = parseInt(imgEl.getAttribute('width') || '220', 10);
+    const h = parseInt(imgEl.getAttribute('height') || '150', 10);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(w, h);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, w/h, 0.1, 5000);
+    scene.add(new THREE.AmbientLight(0xffffff, 1));
+
+    const loader = new STLLoader();
+    loader.load(url, (geom) => {
+      if (geom.computeVertexNormals) geom.computeVertexNormals();
+      const hasColors = !!(geom.getAttribute && geom.getAttribute('color'));
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: hasColors, color: hasColors ? undefined : 0xd2b48c, roughness:.6, metalness:.05
+      });
+      const mesh = new THREE.Mesh(geom, mat);
+      scene.add(mesh);
+
+      const box = new THREE.Box3().setFromObject(mesh);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      mesh.position.sub(center);
+
+      const maxDim = Math.max(size.x, size.y, size.z) || 100;
+      const dist = maxDim * 1.8;
+      camera.position.set(dist, dist * 0.6, dist);
+      camera.lookAt(0,0,0);
+
+      renderer.render(scene, camera);
+      imgEl.src = renderer.domElement.toDataURL('image/png');
+      renderer.dispose();
+    }, undefined, () => {
+      imgEl.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#f2f2f2"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#888">3D Preview</text></svg>`);
+    });
+  }
+
+  const thumbEls = Array.from(document.querySelectorAll('img.stl-thumb[data-stl]'));
+  if (thumbEls.length && !_thumbInit) {
+    _thumbInit = true;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { renderThumb(e.target); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '200px' });
+    thumbEls.forEach(el => io.observe(el));
+  }
+</script>
+
+
 {% endblock %}

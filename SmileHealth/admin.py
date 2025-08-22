@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Patient, Image,Profile, Message,Comment
+from .models import Patient, Image, Message, Profile, Comment, Model3D, Video
 
 # Register your models here.
 from django.contrib import admin
@@ -7,6 +7,9 @@ from .models import Patient, Image
 
 admin.site.register(Message)
 admin.site.register(Comment)
+admin.site.register(Model3D)
+admin.site.register(Video)
+
 
 @admin.register(Patient)
 class PatientAdmin(admin.ModelAdmin):

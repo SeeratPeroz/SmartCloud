@@ -77,3 +77,15 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.author} on {self.patient} at {self.created_at:%Y-%m-%d %H:%M}"
+
+
+# 3D Model for Patients
+class Model3D(models.Model):
+    ptnID = models.ForeignKey('Patient', on_delete=models.CASCADE, related_name='models3d')
+    usrID = models.ForeignKey(User, on_delete=models.CASCADE, related_name='models3d')
+    file = models.FileField(upload_to='patient_models/')                 # .stl
+    thumbnail = models.ImageField(upload_to='patient_models/thumbs/', blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"3D Model {self.id} for {self.ptnID}"
