@@ -13,6 +13,8 @@ from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.urls import reverse   # <-- NEW
+
 
 
 
@@ -32,14 +34,24 @@ def login(request):
 
         if user is not None:
             auth_login(request, user)
-            #int("User authenticated successfully")
-            return redirect('index')
+            # go to progress first, then to index
+            progress_url = reverse('progress') + '?next=' + reverse('index')
+            return redirect(progress_url)
         else:
             #rint("User authentication failed")
             messages.error(request, "Ungültiger Benutzername oder Passwort")
 
     return render(request, "login.html")
 
+
+@login_required
+def progress(request):
+    """Simple progress/transition page after successful login."""
+    target = request.GET.get('next') or reverse('index')
+    return render(request, "progress.html", {"redirect_to": target})
+
+
+# Logout view
 def logout_view(request):
     logout(request)
     return redirect('login')

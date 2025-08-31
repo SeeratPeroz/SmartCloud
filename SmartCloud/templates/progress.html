@@ -1,0 +1,117 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Anmeldung – wird vorbereitet…</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root{ --accent:#2fa6a0; --accent2:#58d1b9; --ink:#0f172a; }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{
+      margin:0; font-family:"Inter", system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      color:#0f172a; background: #0b1014 url("https://images.pexels.com/photos/305568/pexels-photo-305568.jpeg") center/cover no-repeat;
+      display:grid; place-items:center;
+    }
+    .scrim{
+      position:fixed; inset:0; background:linear-gradient(180deg, rgba(11,16,20,.70), rgba(11,16,20,.72));
+    }
+    .wrap{
+      position:relative; z-index:1; text-align:center; color:#fff; padding:24px; max-width:90vw;
+    }
+    h1{
+      margin:0 0 10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em;
+      font-size: clamp(18px, 2.8vw, 28px);
+    }
+    p.lead{ margin:0 0 24px; color:#e5f2f1; font-weight:400 }
+    .loader{
+      width:170px; height:170px; margin:0 auto 18px; position:relative; display:grid; place-items:center;
+    }
+    .ring{
+      position:absolute; inset:0; border-radius:50%;
+      background:
+        conic-gradient(from 0deg, var(--accent2) 0% 10%, transparent 10% 100%);
+      animation: spin 1.3s linear infinite;
+      mask: radial-gradient(circle 48% at 50% 50%, transparent 49%, #000 50%);
+      filter: drop-shadow(0 8px 28px rgba(0,0,0,.35));
+    }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .tooth{
+      width:86px; height:86px; object-fit:contain; border-radius:50%;
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,.35));
+    }
+    .percent{
+      position:absolute; bottom:-6px; width:100%; text-align:center; font-weight:800; letter-spacing:.08em;
+      color:#d9fffa; text-shadow:0 2px 14px rgba(0,0,0,.35);
+    }
+    .hint{ color:#cfe9e6; font-size:14px; margin-top:8px }
+    .btn{
+      display:inline-block; margin-top:18px; padding:10px 16px; border-radius:12px; text-decoration:none; color:#fff;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      box-shadow:0 10px 22px rgba(47,166,160,.25); font-weight:800; letter-spacing:.04em;
+    }
+    /* footer logos */
+    .brands{
+      margin-top:28px; display:flex; gap:min(4vw,28px); justify-content:center; align-items:center; flex-wrap:wrap; opacity:.95
+    }
+    .brands img{ height:34px; width:auto }
+    .brands img.center{ height:44px }
+  </style>
+</head>
+<body>
+  <div class="scrim" aria-hidden="true"></div>
+
+  <main class="wrap" aria-live="polite">
+    <h1>Anmeldung erfolgreich</h1>
+    <p class="lead">Ihre Arbeitsumgebung wird vorbereitet …</p>
+
+    <div class="loader" role="status" aria-label="Bitte warten">
+      <div class="ring"></div>
+      <!-- Use your tooth sticker / any brand icon you prefer -->
+      <img class="tooth" src="{% static 'brand/smilehealth.png' %}" alt="Ladevorgang">
+      <div class="percent" id="pct">0%</div>
+    </div>
+
+    <div class="hint">Sie werden automatisch weitergeleitet.</div>
+    <a class="btn" id="skipBtn" href="{{ redirect_to|default:'/index/' }}">Jetzt fortfahren</a>
+
+    <div class="brands">
+      <img src="{% static 'brand/rheine.png' %}" alt="Rheine">
+      <img class="center" src="{% static 'brand/denshealth.png' %}" alt="Dens Health Management">
+      <img src="{% static 'brand/merseburg.png' %}" alt="ZMVZ Merseburg">
+      <img src="{% static 'brand/sachsenpraxen.png' %}" alt="Sachsen Praxen">
+    </div>
+  </main>
+
+  <script>
+    (function(){
+      const pctEl = document.getElementById('pct');
+      const target = "{{ redirect_to|escapejs }}";
+      const fallback = "/index/";
+      const goTo = target && target.startsWith("/") ? target : fallback;
+
+      const total = 2200;        // total ms for the progress
+      const step  = 40;          // update interval
+      let elapsed = 0;
+
+      const tick = setInterval(()=>{
+        elapsed += step;
+        const p = Math.min(100, Math.round((elapsed/total)*100));
+        pctEl.textContent = p + "%";
+        if (p >= 100){
+          clearInterval(tick);
+          window.location.replace(goTo);
+        }
+      }, step);
+
+      document.getElementById('skipBtn')?.addEventListener('click', (e)=>{
+        e.preventDefault();
+        window.location.replace(goTo);
+      });
+    })();
+  </script>
+</body>
+</html>

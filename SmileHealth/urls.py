@@ -8,6 +8,9 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('index/', views.index, name='index'),  # main page
 
+    # NEW: progress page after login
+    path('progress/', views.progress, name='progress'),
+
 
 
     path('load_new_fall/', views.load_new_fall, name='load_new_fall'),
