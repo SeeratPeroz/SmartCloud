@@ -8,7 +8,8 @@
             <h5 class="mb-0">Mein Konto bearbeiten</h5>
         </div>
         <div class="card-body">
-            <form id="settingsForm" method="POST">
+            <!-- IMPORTANT: enable file uploads -->
+            <form id="settingsForm" method="POST" enctype="multipart/form-data">
                 {% csrf_token %}
 
                 <!-- Avatar preview -->
@@ -16,34 +17,38 @@
                     <img src="{{ user.profile.avatar_url }}" id="avatarPreview" class="rounded-circle" width="120" height="120" alt="Avatar">
                 </div>
 
-                <!-- Display messages -->
+                <!-- Display messages (Bootstrap 5) -->
                 {% if messages %}
                 <div class="container mt-3">
                     {% for message in messages %}
                         <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                             {{ message }}
-                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
                         </div>
                     {% endfor %}
                 </div>
                 {% endif %}
 
-                <!-- Avatar selection -->
+                <!-- Avatar selection (preset options) -->
                 <div class="mb-3">
                     <label class="form-label">Profilbild auswählen</label>
                     <div class="d-flex flex-wrap gap-2">
                         {% for num in avatar_nums %}
                         <img src="https://i.pravatar.cc/150?img={{ num }}" 
-                            class="rounded-circle avatar-option" 
-                            width="60" height="60" 
-                            style="cursor:pointer; border: 2px solid transparent;"
-                            onclick="selectAvatar('https://i.pravatar.cc/150?img={{ num }}')">
+                             class="rounded-circle avatar-option" 
+                             width="60" height="60" 
+                             style="cursor:pointer; border: 2px solid transparent;"
+                             onclick="selectAvatar('https://i.pravatar.cc/150?img={{ num }}')">
                         {% endfor %}
-
                     </div>
                     <input type="hidden" name="avatar_url" id="avatar_url" value="{{ user.profile.avatar_url }}">
+                </div>
+
+                <!-- Custom avatar upload -->
+                <div class="mb-3">
+                    <label for="avatar_file" class="form-label">Eigenes Bild hochladen</label>
+                    <input type="file" class="form-control" id="avatar_file" name="avatar_file" accept="image/*">
+                    <div class="form-text">Unterstützt PNG/JPG (max. 5 MB). Das hochgeladene Bild überschreibt die Auswahl oben.</div>
                 </div>
 
                 <!-- Username -->
@@ -95,8 +100,26 @@ function selectAvatar(url) {
 
     // Highlight selected
     document.querySelectorAll(".avatar-option").forEach(img => img.style.border = "2px solid transparent");
-    document.querySelector(`img[src='${url}']`).style.border = "2px solid #0d6efd";
+    const sel = Array.from(document.querySelectorAll(".avatar-option")).find(img => img.src === url);
+    if (sel) sel.style.border = "2px solid #0d6efd";
+
+    // clear file input if any custom image was selected before
+    const fileInput = document.getElementById('avatar_file');
+    if (fileInput) fileInput.value = '';
 }
+
+// Live preview for uploaded file
+document.getElementById('avatar_file')?.addEventListener('change', function(e){
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev){
+        document.getElementById("avatarPreview").src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    // Clear preset URL so backend knows file takes precedence (not strictly required)
+    document.getElementById("avatar_url").value = '';
+});
 
 document.getElementById("settingsForm").addEventListener("submit", function(event) {
     let pass = document.getElementById("password").value;

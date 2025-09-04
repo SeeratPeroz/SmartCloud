@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Übersicht - CleverImplant{% endblock %}
+{% block title %}Übersicht - CleverCloud{% endblock %}
 
 {% block content %}
 <h1 class="h3 mb-4 text-gray-800">Übersicht</h1>
@@ -10,7 +10,7 @@
 /* Chat box base style */
 #chat-box {
     position: fixed;
-    bottom: -500px; /* hidden below screen */
+    bottom: -500px;
     right: 20px;
     width: 400px;
     height: 450px;
@@ -20,11 +20,9 @@
     z-index: 1051;
     display: flex;
     flex-direction: column;
-    transition: bottom 0.3s ease-in-out; /* smooth slide */
+    transition: bottom 0.3s ease-in-out;
 }
-/* Visible state */
 #chat-box.open { bottom: 70px; }
-/* Floating chat button */
 #chat-toggle {
     position: fixed;
     bottom: 20px;
@@ -47,12 +45,30 @@
     border-top-left-radius: .25rem;
     border-top-right-radius: .25rem;
 }
-.gear-btn {
-    position: absolute;
-    top: .5rem;
-    left: .5rem;
-    z-index: 2;
+.gear-btn { position: absolute; top: .5rem; left: .5rem; z-index: 2; }
+/* extra share button (owner only) */
+.share-btn { position:absolute; top:.5rem; left:2.9rem; z-index:2; }
+
+/* Visibility badges */
+.vis-badge{display:inline-block; padding:2px 6px; border-radius:4px; font-size:12px; margin-left:6px;}
+.vis-private{background:#eee; color:#111;}
+.vis-shared{background:#fff3cd; color:#7a5200; border:1px solid #ffe69c;}
+.vis-public{background:#d1fae5; color:#065f46; border:1px solid #a7f3d0;}
+
+/* Owner/shared chips */
+.chip-row{
+  display:flex; flex-wrap:wrap; gap:6px; justify-content:center;
+  margin-top:6px; padding:0 10px;   /* nudge inside card */
 }
+.owner-chip{
+  width:32px; height:32px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:14px; color:#fff;
+  background: linear-gradient(135deg,#2fa6a0,#58d1b9);
+  box-shadow: 0 2px 6px rgba(0,0,0,.15);
+}
+.owner-chip.shared{ background: linear-gradient(135deg,#475569,#94a3b8); }
+.owner-chip.more{ background:#e2e8f0; color:#0f172a; font-weight:800; }
 </style>
 
 <div class="container py-3">
@@ -75,6 +91,22 @@
     </div>
   </div>
 
+  <!-- Owner filter (staff only) -->
+  {% if request.user.is_staff %}
+  <form method="get" class="mb-3 d-flex align-items-center gap-2">
+    <input type="hidden" name="scope" value="{{ scope|default:'all' }}">
+    <select name="owner" class="form-select form-select-sm" style="max-width:220px;">
+      <option value="">Alle Eigentümer</option>
+      {% for u in users %}
+        <option value="{{ u.id }}" {% if request.GET.owner == u.id|stringformat:"s" %}selected{% endif %}>
+          {{ u.get_full_name|default:u.username }}
+        </option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-outline-secondary btn-sm" type="submit">Filtern</button>
+  </form>
+  {% endif %}
+
   <!-- Search bar -->
   <div class="mb-4">
     <input type="text" id="searchInput" class="form-control" placeholder="Patienten suchen..." onkeyup="filterPatients()">
@@ -94,24 +126,34 @@
     {% for patient in patients %}
     <div class="col-6 col-sm-4 col-md-3 col-lg-2 fall-card" data-patient-name="{{ patient.ptnName }} {{ patient.ptnLastname }}">
       <div class="card text-center position-relative" style="height: 180px;">
-        <!-- Settings (owner only) -->
         {% if patient.usrID_id == request.user.id %}
           <a href="{% url 'patient_manage' patient.id %}" class="btn btn-light btn-sm gear-btn" title="Patient verwalten">
             <i class="fas fa-cog"></i>
           </a>
+          <!-- Owner-only share shortcut: opens manage page with ?open=share -->
+
         {% endif %}
 
         <a href="{% url 'patientImage' patient.id %}" style="text-decoration: none; color: inherit;">
           {% if patient.thumbnail %}
             <img src="{{ patient.thumbnail.url }}" class="patient-thumb" alt="Thumbnail von {{ patient.ptnName }} {{ patient.ptnLastname }}">
-          {% else %}
+          {% else %}    
             <div class="bg-info d-flex align-items-center justify-content-center" style="height:105px; border-top-left-radius:.25rem; border-top-right-radius:.25rem;">
               <img src="https://img.icons8.com/ios-filled/40/ffffff/task.png" alt="Case Icon">
             </div>
           {% endif %}
           <div class="card-body d-flex flex-column justify-content-center align-items-center p-2">
-            <h6 class="fw-bold mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h6>
-            <!-- Ownership badge -->
+            <h6 class="fw-bold mb-0">
+              {{ patient.ptnName }} {{ patient.ptnLastname }}
+              {% if patient.visibility == 'PRIVATE' %}
+                <span class="vis-badge vis-private" title="Nur Eigentümer und Admins">Privat</span>
+              {% elif patient.visibility == 'SHARED' %}
+                <span class="vis-badge vis-shared" title="Mit ausgewählten Nutzern geteilt">Geteilt</span>
+              {% elif patient.visibility == 'PUBLIC_ORG' %}
+                <span class="vis-badge vis-public" title="Für alle angemeldeten Nutzer sichtbar">Öffentlich</span>
+              {% endif %}
+            </h6>
+
             {% if patient.usrID_id == request.user.id %}
               <span class="badge bg-light text-dark mt-1">Eigentümer</span>
             {% elif patient.shared_with.all|length and request.user in patient.shared_with.all %}
@@ -119,11 +161,42 @@
             {% else %}
               <span class="badge bg-secondary mt-1">Fremd</span>
             {% endif %}
+
+            <!-- Chips per visibility rules -->
+            {% if patient.visibility == 'PRIVATE' %}
+              <!-- Only owner emoji -->
+              <div class="chip-row">
+                {% with owner_name=patient.usrID.get_full_name|default:patient.usrID.username %}
+                  <div class="owner-chip" title="Eigentümer: {{ owner_name }}">
+                    {{ owner_name|slice:":1"|upper }}
+                  </div>
+                {% endwith %}
+              </div>
+            {% elif patient.visibility == 'SHARED' %}
+              <!-- Only shared users' emojis -->
+              {% with shared_list=patient.shared_with.all %}
+                {% if shared_list|length > 0 %}
+                <div class="chip-row">
+                  {% for u in shared_list|slice:":5" %}
+                    {% with un=u.get_full_name|default:u.username %}
+                      <div class="owner-chip shared" title="Geteilt mit: {{ un }}">
+                        {{ un|slice:":1"|upper }}
+                      </div>
+                    {% endwith %}
+                  {% endfor %}
+                  {% if shared_list|length > 5 %}
+                    <div class="owner-chip more" title="Weitere geteilt: {{ shared_list|length|add:'-5' }}">…</div>
+                  {% endif %}
+                </div>
+                {% endif %}
+              {% endwith %}
+            {% else %}
+              <!-- PUBLIC_ORG: show no emojis -->
+            {% endif %}
           </div>
         </a>
 
-        <!-- Delete button only for owner -->
-        {% if patient.usrID_id == request.user.id %}
+        {% if patient.usrID_id == request.user.id or request.user.is_staff or request.user.is_superuser %}
         <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2"
                 onclick="event.preventDefault(); confirmDelete({{ patient.id }}, this)">
           &times;
@@ -139,168 +212,73 @@
   {% include 'newFall.html' %}
 </div>
 
-<!-- Chat toggle button with unread count (kept hidden unless used elsewhere) -->
-<button id="chat-toggle-btn" style="display: none;"
-        class="btn btn-primary position-fixed"
-        style="bottom: 20px; right: 20px; z-index: 1050;"
-        onclick="toggleChatBox()">
-  Chat
-  <span id="unread-count" class="badge bg-danger ms-2" style="display:none;">0</span>
-</button>
-
-<div id="chat-box">
-  <div style="padding: 0.5rem; border-bottom: 1px solid #ddd; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
-    <span>Chat mit <span id="chat-with">—</span></span>
-    <button style="border:none; background:none; font-weight:bold; cursor:pointer;" onclick="closeChatBox()">×</button>
-  </div>
-  <div style="flex: 1; display: flex; overflow: hidden;">
-    <!-- User list -->
-    <div id="chat-user-list" style="width: 120px; border-right: 1px solid #ddd; overflow-y: auto;">
-      <ul class="list-group list-group-flush" style="max-height: 100%;">
-        {% for user in users %}
-        <li class="list-group-item list-group-item-action"
-            onclick="startChat({{ user.id }}, '{{ user.username }}')"
-            style="cursor: pointer;">
-          {{ user.username }}
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-
-    <!-- Messages -->
-    <div style="flex: 1; display: flex; flex-direction: column;">
-      <div id="chat-messages" style="flex-grow: 1; padding: 0.5rem; overflow-y: auto; font-size: 0.9rem; background: #f9f9f9;"></div>
-      <div style="padding: 0.5rem; border-top: 1px solid #ddd;">
-        <input type="text" id="chat-input" class="form-control" placeholder="Nachricht eingeben..." onkeypress="if(event.key === 'Enter') sendMessage()">
-      </div>
-    </div>
-  </div>
-</div>
-<button id="chat-toggle">💬</button>
+<button id="chat-toggle" title="Chat öffnen">💬</button>
 
 <script>
-// Chat box toggle functionality
 document.getElementById("chat-toggle").addEventListener("click", function() {
   document.getElementById("chat-box").classList.toggle("open");
 });
 function closeChatBox() {
   document.getElementById("chat-box").classList.remove("open");
 }
-
-// Delete patient confirmation
 function confirmDelete(patientId, buttonElement) {
   if (confirm("Sind Sie sicher, dass Sie diesen Patienten löschen möchten?")) {
     window.location.href = `/delete_patient/${patientId}/`;
-    console.log("Deleting patient with ID:", patientId);
   }
 }
-
 document.addEventListener('DOMContentLoaded', () => {
-  let chatSocket = null;
-  let isSocketOpen = false;
-  let receiverId = null;
-  let unreadCount = 0;
-
-  // Start a chat with user id and username
+  let chatSocket = null, isSocketOpen = false, receiverId = null, unreadCount = 0;
   window.startChat = function(id, username) {
-    if (receiverId === id) return;  // already chatting
+    if (receiverId === id) return;
     receiverId = id;
     document.getElementById('chat-with').textContent = username;
     document.getElementById('chat-messages').innerHTML = '';
-    openChatBox();
-    connectWebSocket();
-    resetUnreadCount();
+    openChatBox(); connectWebSocket(); resetUnreadCount();
   };
-
-  // Show chat box
-  function openChatBox() { document.getElementById('chat-box').style.display = 'flex'; }
-  // Hide chat box
-  function closeChatBox() { document.getElementById('chat-box').style.display = 'none'; }
-
-  // Connect to WebSocket for the selected receiver
+  function openChatBox(){ document.getElementById('chat-box').style.display = 'flex'; }
+  function closeChatBox(){ document.getElementById('chat-box').style.display = 'none'; }
   function connectWebSocket() {
-    if (chatSocket) { chatSocket.close(); }
+    if (chatSocket) chatSocket.close();
     if (!receiverId) return;
-
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${protocol}://${window.location.host}/ws/chat/${receiverId}/`;
-
     chatSocket = new WebSocket(wsUrl);
     isSocketOpen = false;
-
-    chatSocket.onopen = function() {
-      console.log("WebSocket connection opened");
-      isSocketOpen = true;
-    };
-
-    chatSocket.onmessage = function(e) {
+    chatSocket.onopen = function(){ isSocketOpen = true; };
+    chatSocket.onmessage = function(e){
       const data = JSON.parse(e.data);
       const message = data.message;
       const senderUsername = data.sender_username || 'Unknown';
       const senderIdMsg = data.sender_id;
-
       const messagesDiv = document.getElementById('chat-messages');
       messagesDiv.innerHTML += `<div><strong>${senderUsername}:</strong> ${message}</div>`;
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-      if (data.unread_count !== undefined) {
-        updateUnreadCount(data.unread_count);
-      }
-
-      // If message is from another user and chat is hidden, increment unread badge
       if (senderIdMsg !== receiverId && document.getElementById('chat-box').style.display === 'none') {
         incrementUnreadCount();
       }
     };
-
-    chatSocket.onclose = function() {
-      console.log('Chat socket closed unexpectedly');
-      isSocketOpen = false;
-    };
-
-    chatSocket.onerror = function(e) {
-      console.error('WebSocket error:', e);
-      isSocketOpen = false;
-    };
+    chatSocket.onclose = function(){ isSocketOpen = false; };
+    chatSocket.onerror = function(){ isSocketOpen = false; };
   }
-
-  // Send message through WebSocket if open
-  window.sendMessage = function() {
+  window.sendMessage = function(){
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
     if (!message || !chatSocket) return;
-
     if (isSocketOpen) {
-      chatSocket.send(JSON.stringify({
-        'message': message,
-        'receiver_id': receiverId,
-      }));
+      chatSocket.send(JSON.stringify({ 'message': message, 'receiver_id': receiverId }));
       input.value = '';
-    } else {
-      console.warn("WebSocket is not open yet.");
     }
   };
-
-  // Update unread message badge
-  function updateUnreadCount(count) {
+  function updateUnreadCount(count){
     unreadCount = count;
     const badge = document.getElementById('unread-count');
-    if (unreadCount > 0) {
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
-    }
+    if (unreadCount > 0){ badge.textContent = unreadCount; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
   }
-  function incrementUnreadCount() { unreadCount++; updateUnreadCount(unreadCount); }
-  function resetUnreadCount() { unreadCount = 0; updateUnreadCount(unreadCount); }
-
-  // Expose open and close chat box functions globally if needed
-  window.openChatBox = openChatBox;
-  window.closeChatBox = closeChatBox;
+  function incrementUnreadCount(){ unreadCount++; updateUnreadCount(unreadCount); }
+  function resetUnreadCount(){ unreadCount = 0; updateUnreadCount(unreadCount); }
+  window.openChatBox = openChatBox; window.closeChatBox = closeChatBox;
 });
-
-// Filter patients based on search input
 function filterPatients() {
   let input = document.getElementById("searchInput").value.toLowerCase();
   let cards = document.querySelectorAll("#fallsContainer .fall-card");

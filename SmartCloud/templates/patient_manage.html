@@ -9,10 +9,9 @@
     <a href="{% url 'patientImage' patient.id %}" class="btn btn-outline-secondary btn-sm">Zurück zum Patientenbereich</a>
   </div>
 
-  <!-- Only owner may edit/share -->
-  {% if request.user.id != patient.usrID.id %}
+  {% if not can_edit %}
     <div class="alert alert-warning">
-      Sie haben nur Leserechte. Änderungen können nur vom Eigentümer ({{ patient.usrID.username }}) vorgenommen werden.
+      Sie haben nur Leserechte. Änderungen können nur vom Eigentümer/Manager vorgenommen werden.
     </div>
   {% endif %}
 
@@ -27,17 +26,17 @@
             <input type="hidden" name="form" value="details">
             <div class="mb-3">
               <label class="form-label">Vorname</label>
-              <input type="text" name="ptnName" class="form-control" value="{{ patient.ptnName }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+              <input type="text" name="ptnName" class="form-control" value="{{ patient.ptnName }}" {% if not can_edit %}disabled{% endif %} required>
             </div>
             <div class="mb-3">
               <label class="form-label">Nachname</label>
-              <input type="text" name="ptnLastname" class="form-control" value="{{ patient.ptnLastname }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+              <input type="text" name="ptnLastname" class="form-control" value="{{ patient.ptnLastname }}" {% if not can_edit %}disabled{% endif %} required>
             </div>
             <div class="mb-3">
               <label class="form-label">Geburtsdatum</label>
-              <input type="date" name="ptnDOB" class="form-control" value="{{ patient.ptnDOB|date:'Y-m-d' }}" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+              <input type="date" name="ptnDOB" class="form-control" value="{{ patient.ptnDOB|date:'Y-m-d' }}" {% if not can_edit %}disabled{% endif %} required>
             </div>
-            {% if request.user.id == patient.usrID.id %}
+            {% if can_edit %}
             <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
             {% endif %}
           </form>
@@ -45,33 +44,52 @@
       </div>
     </div>
 
-    <!-- Patient teilen -->
+    <!-- Sichtbarkeit -->
     <div class="col-12 col-lg-6">
       <div class="card shadow-sm h-100">
-        <div class="card-header bg-white"><strong>Patient teilen</strong></div>
+        <div class="card-header bg-white"><strong>Sichtbarkeit</strong></div>
         <div class="card-body">
-          <form method="POST" action="{% url 'patient_manage' patient.id %}">
+          <!-- Plain visibility form (PRIVATE / PUBLIC submit directly) -->
+          <form id="visibilityForm" method="POST" action="{% url 'patient_manage' patient.id %}">
             {% csrf_token %}
-            <input type="hidden" name="form" value="share">
-            <label class="form-label">Mit Benutzern teilen:</label>
-            <select class="form-control" name="share_with" multiple size="8" {% if request.user.id != patient.usrID.id %}disabled{% endif %}>
-              {% for u in users %}
-                {% if u.id != patient.usrID.id %}
-                  <option value="{{ u.id }}" {% if u in patient.shared_with.all %}selected{% endif %}>{{ u.username }}</option>
-                {% endif %}
-              {% endfor %}
-            </select>
-            <div class="form-text mt-2">Tipp: Strg/Cmd halten, um mehrere auszuwählen.</div>
-            {% if request.user.id == patient.usrID.id %}
-            <button type="submit" class="btn btn-primary btn-sm mt-3">Teilen speichern</button>
+            <input type="hidden" name="form" value="visibility">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="visibility" id="vis_private" value="PRIVATE"
+                     {% if patient.visibility == 'PRIVATE' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+              <label class="form-check-label" for="vis_private">
+                Privat <small class="text-muted d-block">Nur Eigentümer und Admin/Manager.</small>
+              </label>
+            </div>
+            <div class="form-check mt-2">
+              <!-- Clicking opens modal instead of submitting -->
+              <input class="form-check-input" type="radio" name="visibility" id="vis_shared" value="SHARED"
+                     {% if patient.visibility == 'SHARED' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+              <label class="form-check-label" for="vis_shared">
+                Geteilt <small class="text-muted d-block">Wählen Sie Benutzer im nächsten Schritt aus.</small>
+              </label>
+            </div>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="radio" name="visibility" id="vis_public" value="PUBLIC_ORG"
+                     {% if patient.visibility == 'PUBLIC_ORG' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+              <label class="form-check-label" for="vis_public">
+                Öffentlich <small class="text-muted d-block">Für alle angemeldeten Nutzer sichtbar.</small>
+              </label>
+            </div>
+
+            {% if can_edit %}
+            <button id="btnSaveVisibility" type="submit" class="btn btn-primary btn-sm mt-3">Sichtbarkeit speichern</button>
             {% endif %}
+            <div class="form-text mt-2">
+              Hinweis: Bei <em>Geteilt</em> erscheint ein Dialog zum Auswählen der Benutzer.
+            </div>
           </form>
+
           {% if patient.shared_with.all %}
           <hr>
           <div class="small text-muted">
             Aktuell geteilt mit:
             {% for u in patient.shared_with.all %}
-              <span class="badge bg-light text-dark">{{ u.username }}</span>
+              <span class="badge bg-light text-dark">{{ u.get_full_name|default:u.username }}</span>
             {% empty %}
               <span class="text-muted">Niemand</span>
             {% endfor %}
@@ -99,13 +117,13 @@
                 {% csrf_token %}
                 <input type="hidden" name="form" value="thumb">
                 <div class="mb-2">
-                  <input type="file" name="thumbnail" accept="image/*" class="form-control" {% if request.user.id != patient.usrID.id %}disabled{% endif %} required>
+                  <input type="file" name="thumbnail" accept="image/*" class="form-control" {% if not can_edit %}disabled{% endif %} required>
                 </div>
-                {% if request.user.id == patient.usrID.id %}
+                {% if can_edit %}
                 <button type="submit" class="btn btn-success btn-sm">Thumbnail hochladen/ersetzen</button>
                 {% endif %}
               </form>
-              {% if patient.thumbnail and request.user.id == patient.usrID.id %}
+              {% if patient.thumbnail and can_edit %}
               <form method="POST" class="mt-2" action="{% url 'patient_manage' patient.id %}">
                 {% csrf_token %}
                 <input type="hidden" name="form" value="thumb_remove">
@@ -120,4 +138,126 @@
     </div>
   </div>
 </div>
+
+{% if can_edit %}
+<!-- SHARE MODAL -->
+<div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="shareForm" method="POST" action="{% url 'patient_manage' patient.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="form" value="set_shared">
+        <div class="modal-header">
+          <h5 class="modal-title" id="shareModalLabel">Benutzer auswählen</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body">
+          <div class="text-muted mb-2">Wählen Sie die Benutzer aus, mit denen der Patient geteilt werden soll.</div>
+          <div class="row row-cols-1 row-cols-sm-2 g-2">
+            {% for u in users %}
+              {% if u.id != patient.usrID.id %}
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="share_{{ u.id }}"
+                         name="share_with" value="{{ u.id }}"
+                         {% if u in patient.shared_with.all %}checked{% endif %}>
+                  <label class="form-check-label" for="share_{{ u.id }}">{{ u.get_full_name|default:u.username }}</label>
+                </div>
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div id="shareError" class="alert alert-danger d-none mt-3" role="alert">
+            Bitte wählen Sie mindestens einen Benutzer aus.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button id="shareOkBtn" type="submit" class="btn btn-primary">OK</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const visPrivate = document.getElementById('vis_private');
+  const visShared  = document.getElementById('vis_shared');
+  const visPublic  = document.getElementById('vis_public');
+  const visForm    = document.getElementById('visibilityForm');
+  const shareModalEl = document.getElementById('shareModal');
+
+  let previousVis = (document.querySelector('input[name="visibility"]:checked') || {}).value;
+
+  function getModalInstance(el){
+    if (!el) return null;
+    if (window.bootstrap?.Modal) return bootstrap.Modal.getOrCreateInstance(el);
+    if (window.jQuery && typeof jQuery(el).modal === 'function') return { show: ()=>jQuery(el).modal('show'), hide: ()=>jQuery(el).modal('hide') };
+    return null;
+  }
+  function openShareModal(){ getModalInstance(shareModalEl)?.show(); }
+  function closeShareModal(){ getModalInstance(shareModalEl)?.hide(); }
+
+  // Intercept radio changes:
+  visPrivate?.addEventListener('change', function(e){
+    if (!e.target.checked) return;
+    if (!confirm('Alle bestehenden Freigaben werden entfernt. Fortfahren?')) {
+      // revert selection
+      if (previousVis === 'SHARED') visShared.checked = true;
+      else if (previousVis === 'PUBLIC_ORG') visPublic.checked = true;
+      else visPublic.checked = true; // fallback
+      return;
+    }
+    previousVis = 'PRIVATE';
+    visForm?.submit();
+  });
+
+  visShared?.addEventListener('change', function(e){
+    if (!e.target.checked) return;
+    openShareModal();
+  });
+
+  visPublic?.addEventListener('change', function(e){
+    if (!e.target.checked) return;
+    previousVis = 'PUBLIC_ORG';
+    visForm?.submit();
+  });
+
+  // If modal is closed without submitting, revert radio to previous selection
+  if (shareModalEl){
+    shareModalEl.addEventListener('hidden.bs.modal', function(){
+      const checked = document.querySelector('input[name="visibility"]:checked');
+      if (checked && checked.value === 'SHARED') {
+        if (previousVis === 'PRIVATE') visPrivate.checked = true;
+        else if (previousVis === 'PUBLIC_ORG') visPublic.checked = true;
+        else visPrivate.checked = true;
+      }
+    });
+  }
+
+  // Validate at least one user before submitting the share form
+  const shareForm = document.getElementById('shareForm');
+  const shareError = document.getElementById('shareError');
+  shareForm?.addEventListener('submit', function(e){
+    const anyChecked = !!shareForm.querySelector('input[name="share_with"]:checked');
+    if (!anyChecked){
+      e.preventDefault();
+      shareError?.classList.remove('d-none');
+      return false;
+    }
+    shareError?.classList.add('d-none');
+    previousVis = 'SHARED';
+  });
+
+  // Support ?open=share from index shortcut
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('open') === 'share' && visShared) {
+    visShared.checked = true;
+    previousVis = (document.querySelector('input[name="visibility"]:checked') || {}).value;
+    openShareModal();
+  }
+});
+</script>
 {% endblock %}

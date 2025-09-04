@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Clever Implant – Login</title>
+  <title>Clever Cloud – Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet"/>
 
   <style>
@@ -62,21 +62,21 @@
     .chev{ width:28px; height:28px; border-right:3px solid currentColor; border-bottom:3px solid currentColor; transform:rotate(45deg); animation:bob 1.8s ease-in-out infinite}
     @keyframes bob{0%,100%{transform:translateY(0) rotate(45deg)}50%{transform:translateY(8px) rotate(45deg)}}
 
-    /* ===== LOGOS (color; denshealth centered) ===== */
+    /* ===== LOGOS ===== */
     .logos{background:#f8fafc;padding:26px 10px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:min(5vw,42px);border-top:1px solid #eef2f7;border-bottom:1px solid #eef2f7}
     .logo{height:44px;width:auto;transition:transform .22s ease}
     .logo.center{height:56px}
     .logo-wrap:hover .logo{transform:scale(1.06)}
 
-    /* ===== MODAL (old pattern with lighter "black crystal") ===== */
+    /* ===== MODAL ===== */
     .modal{
       position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-      background: rgba(0,0,0,.62);                 /* lighter overlay */
+      background: rgba(0,0,0,.62);
       opacity:0; visibility:hidden; pointer-events:none;
       transition: opacity .4s ease, visibility .4s ease; z-index:50;
     }
     .modal::before{
-      content:""; position:absolute; inset:0; pointer-events:none; opacity:.14;  /* softer grid */
+      content:""; position:absolute; inset:0; pointer-events:none; opacity:.14;
       background:
         linear-gradient(60deg, rgba(255,255,255,.05) 1px, transparent 1px) 0 0 / 24px 24px,
         linear-gradient(-60deg, rgba(255,255,255,.03) 1px, transparent 1px) 0 0 / 24px 24px;
@@ -95,13 +95,21 @@
     .modal-title{ font-size:28px; margin:0 0 6px; font-weight:800; color:#0b1014 }
     .modal-desc{ margin:0 0 22px; color:#64748b }
 
-    .field{ margin:0 0 16px }
+    .field{ margin:0 0 16px; position:relative; }
     .label{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#667085;margin:0 0 8px}
     .input{
       width:100%; font-size:16px; padding:14px; border:1px solid #e5e7eb; border-radius:12px; outline:0; background:#fbfcfd;
       transition:border-color .2s, box-shadow .2s, background .2s;
     }
     .input:focus{ border-color:var(--accent); box-shadow:0 0 0 6px rgba(45,164,160,.20); background:#fff }
+
+    /* Eye toggle */
+    .toggle-pass{
+      position:absolute; right:12px; top:34px; width:34px; height:34px;
+      display:grid; place-items:center; border:none; background:transparent; cursor:pointer;
+      color:#64748b;
+    }
+    .toggle-pass:hover{ color:#0f172a }
 
     .modal-buttons{ display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:10px }
     .btn{
@@ -119,16 +127,12 @@
       color:#fff; opacity:.9;
     }
 
-    /* messages */
     .messages{ margin:10px 0 0; padding:0; list-style:none }
     .messages li{ font-size:14px; color:#c0392b; padding:6px 0 }
 
     @media (max-width: 860px){
       .modal-container{ flex-direction:column }
       .modal-right{ height:220px }
-    }
-    @media (prefers-reduced-motion: reduce){
-      .title .char, .subtitle, .chev, .modal, .modal-container{ animation:none!important; transition:none!important }
     }
   </style>
 </head>
@@ -137,18 +141,18 @@
   <!-- ===== HERO ===== -->
   <section class="hero">
     <div class="hero-inner">
-      <h1 class="title" id="brandTitle">CLEVER IMPLANT</h1>
+      <h1 class="title" id="brandTitle">CLEVER <span> &nbsp;  </span> CLOUD</h1>
       <p class="subtitle">Willkommen zurück. Organisieren Sie Ihre Praxis effizient und greifen Sie sicher auf Ihre Daten zu.</p>
     </div>
     <div class="scroll-hint" id="scrollHint" aria-label="Login öffnen">
-      <a href="#" id="openLoginLink" class="text">
-        RUNTER SCROLLEN <span class="sep">
+      <a href="#" id="openLoginLink" class="text" role="button" aria-controls="loginModal">
+        RUNTER SCROLLEN <span class="sep">oder</span> hier klicken
       </a>
       <div class="chev" aria-hidden="true"></div>
     </div>
   </section>
 
-  <!-- ===== LOGOS (denshealth centered) ===== -->
+  <!-- ===== LOGOS ===== -->
   <section class="logos" aria-label="Partner-Logos">
     <span class="logo-wrap"><img class="logo" src="{% static 'brand/rheine.png' %}" alt="Smile Health"></span>
     <span class="logo-wrap"><img class="logo" src="{% static 'brand/merseburg.png' %}" alt="ZMVZ Merseburg"></span>
@@ -181,6 +185,15 @@
           <div class="field">
             <label for="password" class="label">Passwort</label>
             <input class="input" type="password" name="password" id="password" placeholder="Passwort" required>
+            <button type="button" class="toggle-pass" id="togglePass" aria-label="Passwort anzeigen/ausblenden" title="Passwort anzeigen/ausblenden">
+              <!-- Eye icons -->
+              <svg id="eyeOpen" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 5c-5.5 0-9.5 3.6-11 6.5C2.5 14.4 6.5 18 12 18s9.5-3.6 11-6.5C21.5 8.6 17.5 5 12 5zm0 11c-2.6 0-4.5-2-4.5-4.5S9.4 7 12 7s4.5 2 4.5 4.5S14.6 16 12 16zm0-7.5A3 3 0 1 0 15 11.5 3 3 0 0 0 12 8.5z"/>
+              </svg>
+              <svg id="eyeClosed" xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24" style="display:none;">
+                <path d="M3.3 2.3 2 3.6 5 6.7C3.4 7.9 2.1 9.3 1 11.5 2.5 14.4 6.5 18 12 18c2.1 0 3.9-.5 5.5-1.3l3.5 3.5 1.3-1.3L3.3 2.3zM12 16c-2.6 0-4.5-2-4.5-4.5 0-.5.1-1 .2-1.4l5.7 5.7c-.4.1-.9.2-1.4.2zm8.5-4.5c-.8-1.6-2.2-3-3.9-4.1l-1.6 1.6A4.48 4.48 0 0 1 16.5 11.5c0 1-.3 2-.9 2.7l1.3 1.3c2.1-1.1 3.8-2.8 4.6-5z"/>
+              </svg>
+            </button>
           </div>
           <div class="modal-buttons">
             <a href="#" style="color:var(--muted); text-decoration:none;">Passwort vergessen?</a>
@@ -190,7 +203,6 @@
       </div>
 
       <div class="modal-right" aria-hidden="true">
-        <!-- Replace with your own if desired -->
         <img src="https://images.pexels.com/photos/5355919/pexels-photo-5355919.jpeg" alt="Zahnbehandlung">
       </div>
 
@@ -203,65 +215,92 @@
   </div>
 
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', function () {
     /* Build animated title letters */
-    const title = document.getElementById('brandTitle');
-    const text = title.textContent.trim();
-    title.textContent = '';
-    [...text].forEach((ch, i) => {
-      const span = document.createElement('span');
-      span.textContent = ch;
-      span.className = 'char';
-      span.style.animationDelay = (i * 0.045) + 's';
-      span.style.transitionDelay = (i * 0.015) + 's';
-      title.appendChild(span);
-    });
+    var title = document.getElementById('brandTitle');
+    if (title) {
+      var text = title.textContent.trim();
+      title.textContent = '';
+      for (var i = 0; i < text.length; i++) {
+        var span = document.createElement('span');
+        span.textContent = text[i];
+        span.className = 'char';
+        span.style.animationDelay = (i * 0.045) + 's';
+        span.style.transitionDelay = (i * 0.015) + 's';
+        title.appendChild(span);
+      }
+    }
 
-    /* Modal wiring */
-    const modal      = document.getElementById('loginModal');
-    const closeBtn   = document.querySelector('.close-button');
-    const scrollHint = document.getElementById('scrollHint');
-    const openLink   = document.getElementById('openLoginLink');
-    const logos      = document.querySelector('.logos');
+    /* Modal wiring (no optional chaining to avoid parse issues) */
+    var modal      = document.getElementById('loginModal');
+    var closeBtn   = document.querySelector('.close-button');
+    var scrollHint = document.getElementById('scrollHint');
+    var openLink   = document.getElementById('openLoginLink');
+    var logos      = document.querySelector('.logos');
 
-    let opened = false;
+    var opened = false;
 
     function openModal(){
-      if (opened) return;
+      if (opened || !modal) return;
       opened = true;
       modal.classList.add('is-open');
       modal.setAttribute('aria-hidden','false');
       document.body.style.overflow = 'hidden';
-      setTimeout(()=>{ document.getElementById('username')?.focus(); }, 320);
+      setTimeout(function(){
+        var u = document.getElementById('username');
+        if (u && u.focus) u.focus();
+      }, 320);
     }
 
     function closeModal(){
+      if (!modal) return;
       modal.classList.remove('is-open');
       modal.setAttribute('aria-hidden','true');
       document.body.style.overflow = 'initial';
-      opened = false;                    // re-arm so it can open again
+      opened = false; // re-arm
     }
 
-    // Click triggers
-    scrollHint?.addEventListener('click', (e)=>{ e.preventDefault(); openModal(); });
-    openLink?.addEventListener('click',  (e)=>{ e.preventDefault(); openModal(); });
+    if (scrollHint) {
+      scrollHint.addEventListener('click', function(e){ e.preventDefault(); if (!opened) openModal(); });
+    }
+    if (openLink) {
+      openLink.addEventListener('click', function(e){ e.preventDefault(); if (!opened) openModal(); });
+    }
 
     // Open on small scroll (~15% viewport)
-    const onScroll = () => { if (!opened && window.scrollY > window.innerHeight * 0.15) openModal(); };
+    function onScroll(){ if (!opened && window.scrollY > window.innerHeight * 0.15) openModal(); }
     window.addEventListener('scroll', onScroll, { passive:true });
 
     // Fallback: open when logos strip enters viewport
     if ('IntersectionObserver' in window && logos){
-      const io = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting) openModal();
+      var io = new IntersectionObserver(function(entries){
+        var entry = entries[0];
+        if (entry && entry.isIntersecting && !opened) openModal();
       }, { threshold:0.1 });
       io.observe(logos);
     }
 
-    // Close behaviors
-    closeBtn?.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e)=>{ if (e.target === modal) closeModal(); });
-    window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeModal(); });
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (modal) modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+    window.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeModal(); });
+
+    /* Show/Hide password */
+    var passInput = document.getElementById('password');
+    var toggle    = document.getElementById('togglePass');
+    var eyeOpen   = document.getElementById('eyeOpen');
+    var eyeClosed = document.getElementById('eyeClosed');
+
+    if (toggle) {
+      toggle.addEventListener('click', function(){
+        if (!passInput) return;
+        var show = passInput.type === 'password';
+        passInput.type = show ? 'text' : 'password';
+        if (eyeOpen && eyeClosed){
+          eyeOpen.style.display   = show ? 'none' : '';
+          eyeClosed.style.display = show ? '' : 'none';
+        }
+      });
+    }
   });
   </script>
 </body>
