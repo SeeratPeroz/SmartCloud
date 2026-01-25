@@ -1,0 +1,27 @@
+# Database
+db.sqlite3
+
+# Media files
+media/
+staticfiles/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Django
+.env
+local_settings.py

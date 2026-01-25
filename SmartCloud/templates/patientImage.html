@@ -1,69 +1,73 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Patienten — Medien{% endblock %}
 
 {% block extra_head %}
+<!-- Import map so example modules can resolve "three" -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
+  }
+}
+</script>
+
+<link rel="stylesheet" href="https://uicdn.toast.com/tui-image-editor/latest/tui-image-editor.css">
+<link rel="stylesheet" href="https://uicdn.toast.com/tui-color-picker/latest/tui-color-picker.css">
 <style>
-  /* Dragover highlight */
-  #dropzone.dragover { background: rgba(13,110,253,.06); border-color:#0d6efd !important; }
+  .img-thumb{cursor:zoom-in}
 
-  /* Upload queue items */
-  .uq-item .progress { height: 8px; }
-  .uq-item .file-meta { font-size: .85rem; }
-
-  /* Comments drawer + backdrop (right side) */
-  .comments-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.35);
-    z-index: 1064; opacity: 0; pointer-events: none; transition: opacity .2s ease;
+  /* Overlay controls for the STL viewer (always visible) */
+  .stl-controls{
+    position:absolute;top:12px;right:12px;z-index:5;
+    background:rgba(255,255,255,.95);border:1px solid #dee2e6;border-radius:12px;
+    padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    box-shadow:0 6px 18px rgba(0,0,0,.25)
   }
-  .comments-backdrop.show { opacity: 1; pointer-events: auto; }
-
-  .comments-drawer {
-    position: fixed; top: 0; right: -390px; width: 380px; height: 100vh;
-    background: #fff; z-index: 1066; box-shadow: -8px 0 24px rgba(0,0,0,.15);
-    display: flex; flex-direction: column; transition: right .25s ease-in-out;
+  .stl-controls label{font-size:.8rem;color:#495057;margin:0}
+  .stl-controls .color{
+    appearance:none;width:36px;height:28px;border:1px solid #ced4da;border-radius:6px;padding:0;cursor:pointer
   }
-  .comments-drawer.open { right: 0; }
+  .stl-controls input[type="range"]{width:140px}
+  .stl-controls .check{display:flex;align-items:center;gap:.35rem;font-size:.85rem;color:#495057}
 
-  .comments-drawer .drawer-header {
-    padding: .75rem 1rem; border-bottom: 1px solid #e9ecef;
-    display: flex; align-items: center; justify-content: space-between;
+  /* Comments drawer/backdrop */
+  .comments-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1064;opacity:0;pointer-events:none;transition:opacity .2s}
+  .comments-backdrop.show{opacity:1;pointer-events:auto}
+  .comments-drawer{position:fixed;top:0;right:-390px;width:380px;height:100vh;background:#fff;z-index:1066;box-shadow:-8px 0 24px rgba(0,0,0,.15);display:flex;flex-direction:column;transition:right .25s}
+  .comments-drawer.open{right:0}
+  .comments-drawer .drawer-header{padding:.75rem 1rem;border-bottom:1px solid #e9ecef;display:flex;align-items:center;justify-content:space-between}
+  .comments-drawer .drawer-body{padding:.75rem .75rem 0;overflow-y:auto;flex:1}
+  .comments-drawer .drawer-footer{border-top:1px solid #e9ecef;padding:.75rem}
+
+  .msg{display:flex;gap:.5rem;margin-bottom:.5rem}
+  .msg .avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex:0 0 36px}
+  .msg .bubble{max-width:78%;padding:.5rem .65rem;border-radius:.75rem;background:#f4f6f8}
+  .msg .meta{font-size:.75rem;color:#6c757d;margin-top:.125rem}
+  .msg.mine{flex-direction:row-reverse}
+  .msg.mine .bubble{background:#e7f1ff}
+  .msg.mine .meta{text-align:right}
+
+  /* Fullscreen viewer */
+  #viewer.d-none{display:none}
+  #viewer{position:fixed;inset:0;z-index:1060;display:flex;align-items:center;justify-content:center}
+  #viewerBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.85)}
+  #viewerToolbar{position:absolute;top:16px;right:16px;display:flex;gap:8px;border-radius:10px;background:#fff;padding:8px 10px;z-index:1062;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  #viewerImg{
+    position:relative;z-index:1061;
+    max-width:calc(100vw - 64px);
+    max-height:calc(100vh - 112px);
+    width:auto;height:auto;object-fit:contain;
+    transform:translate(var(--tx,0px),var(--ty,0px)) scale(var(--s,1));
+    cursor:grab;user-select:none;will-change:transform;
   }
-  .comments-drawer .drawer-body { padding: .75rem .75rem 0; overflow-y: auto; flex: 1; }
-  .comments-drawer .drawer-footer { border-top: 1px solid #e9ecef; padding: .75rem; }
+  #viewer.grabbing #viewerImg{cursor:grabbing}
 
-  /* Chat bubbles */
-  .msg { display: flex; gap: .5rem; margin-bottom: .5rem; }
-  .msg .avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: 0 0 36px; }
-  .msg .bubble { max-width: 78%; padding: .5rem .65rem; border-radius: .75rem; background: #f4f6f8; }
-  .msg .meta { font-size: .75rem; color: #6c757d; margin-top: .125rem; }
-  .msg.mine { flex-direction: row-reverse; }
-  .msg.mine .bubble { background: #e7f1ff; }
-  .msg.mine .meta { text-align: right; }
-
-  /* Fullscreen Image Viewer */
-  #viewer.d-none { display:none; }
-  #viewer { position: fixed; inset: 0; z-index: 1060; display:flex; align-items:center; justify-content:center; }
-  #viewerBackdrop { position:absolute; inset:0; background:rgba(0,0,0,.85); }
-  #viewerImg {
-    position: relative; max-width:none; max-height:none;
-    transform: translate(var(--tx,0px), var(--ty,0px)) scale(var(--s,1));
-    cursor: grab; user-select: none; will-change: transform;
-  }
-  #viewer.grabbing #viewerImg { cursor: grabbing; }
-  #viewerToolbar { position: absolute; top:12px; right:12px; display:flex; gap:8px; border-radius:8px; background:#fff; padding:6px; }
-
-  /* STL: card placeholder + modal canvas */
-  .stl-thumb {
-    display:flex; align-items:center; justify-content:center;
-    font-weight:600; color:#0d6efd; background:#eef5ff;
-    border:1px dashed #cfe2ff; height:140px; border-radius:.25rem .25rem 0 0;
-  }
-  #stlCanvas { width:100%; height:70vh; background:#111; }
-
-  @media (max-width: 576px) {
-    .comments-drawer { width: 100%; right: -100%; }
-  }
+  /* TUI in a fullscreen modal; hide default "Load" button" */
+  .modal-fullscreen .modal-body{padding:0}
+  #tui-editor-wrap{height:calc(100vh - 120px)}
+  .tui-image-editor-header-buttons .tui-image-editor-load-btn{display:none!important}
 </style>
 {% endblock %}
 
@@ -72,11 +76,9 @@
 
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <div class="d-flex align-items-center gap-3">
-      <div>
-        <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
-        <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
-      </div>
+    <div>
+      <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
+      <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
     </div>
     <button id="btnComments" class="btn btn-outline-primary btn-sm">
       <i class="far fa-comments"></i> Kommentare
@@ -84,35 +86,20 @@
     </button>
   </div>
 
-  <!-- Uploader (now accepts STL too) -->
+  <!-- Uploader -->
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">
       <strong>Dateien hochladen</strong>
       <span class="text-muted small ms-2">Bilder, Videos &amp; STL • Drag &amp; Drop oder Klick</span>
     </div>
     <div class="card-body">
-      <div id="dropzone" class="border border-2 border-dashed rounded-3 p-4 text-center"
-           style="border-style: dashed; cursor: pointer;">
+      <div id="dropzone" class="border border-2 border-dashed rounded-3 p-4 text-center" style="border-style:dashed;cursor:pointer;">
         <div class="mb-2"><i class="fas fa-cloud-upload-alt fa-2x text-primary"></i></div>
         <div class="fw-semibold">Dateien hierher ziehen</div>
         <div class="text-muted small">oder klicken, um auszuwählen</div>
-        <!-- accept extended to STL -->
         <input id="filePicker" type="file" accept="image/*,video/*,.stl,model/stl,application/sla" multiple hidden>
       </div>
-
-      <!-- Upload queue / progress -->
-      <div id="uploadQueue" class="mt-3 d-none">
-        <div class="card">
-          <div class="card-header bg-light py-2">
-            <strong>Uploads</strong> <span class="text-muted small">Nicht schließen, bis alle Balken grün sind.</span>
-          </div>
-          <div class="card-body p-2">
-            <div id="queueItems" class="d-flex flex-column gap-2"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM, STL. (*HEIC-Vorschau je nach Browser)</div>
+      <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM, STL.</div>
     </div>
   </div>
 
@@ -128,11 +115,13 @@
             <div class="col-6 col-sm-4 col-md-3 col-lg-2">
               <div class="card h-100 border-0 shadow-sm">
                 <div class="position-relative">
-                  <img src="{{ image.image.url }}"
-                       class="w-100 img-thumb"
-                       style="height:140px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;"
-                       alt="Bild"
-                       onclick="openViewerIndex({{ forloop.counter0 }})">
+                  <img
+                    src="{{ image.image.url }}"
+                    class="w-100 img-thumb"
+                    style="height:140px;object-fit:cover;border-top-left-radius:.25rem;border-top-right-radius:.25rem;"
+                    data-id="{{ image.id }}"
+                    alt="Bild"
+                    onclick="openViewerIndex({{ forloop.counter0 }})">
                   <div class="position-absolute top-0 start-0 p-1">
                     <input class="form-check-input" type="checkbox" name="selected_images" value="{{ image.id }}">
                   </div>
@@ -167,8 +156,7 @@
             <div class="col-12 col-sm-6 col-md-4 col-lg-3">
               <div class="card border-0 shadow-sm h-100">
                 <div class="position-relative">
-                  <video src="{{ v.file.url }}" controls
-                         style="width:100%; height:180px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;"></video>
+                  <video src="{{ v.file.url }}" controls style="width:100%;height:180px;object-fit:cover;border-top-left-radius:.25rem;border-top-right-radius:.25rem;"></video>
                   <div class="position-absolute top-0 start-0 p-1">
                     <input class="form-check-input" type="checkbox" name="selected_videos" value="{{ v.id }}">
                   </div>
@@ -191,11 +179,10 @@
     </div>
   </div>
 
-  <!-- 3D-Modelle (.stl) -->
+  <!-- 3D models -->
   <div class="card shadow-sm mb-4" id="models3d">
     <div class="card-header bg-white d-flex align-items-center justify-content-between">
       <strong>3D-Modelle (.stl)</strong>
-      <!-- Quick anchor to scroll back to uploader if needed -->
       <a class="btn btn-outline-secondary btn-sm" href="#dropzone">Neu hochladen</a>
     </div>
     <div class="card-body">
@@ -208,10 +195,10 @@
               <div class="card h-100 border-0 shadow-sm">
                 <div class="position-relative">
                   {% if m.thumbnail %}
-                    <img src="{{ m.thumbnail.url }}" class="w-100" style="height:140px; object-fit:cover; border-top-left-radius:.25rem; border-top-right-radius:.25rem;" alt="3D Thumbnail">
+                    <img src="{{ m.thumbnail.url }}" class="w-100" style="height:140px;object-fit:cover;border-top-left-radius:.25rem;border-top-right-radius:.25rem;" alt="3D Thumbnail">
                   {% else %}
-                    <div class="stl-thumb">
-                      <span><i class="fas fa-cube me-2"></i>3D</span>
+                    <div class="d-flex align-items-center justify-content-center" style="height:140px;background:#eef5ff;border:1px dashed #cfe2ff;border-top-left-radius:.25rem;border-top-right-radius:.25rem;">
+                      <span class="fw-semibold text-primary"><i class="fas fa-cube me-2"></i>3D</span>
                     </div>
                   {% endif %}
                   <div class="position-absolute top-0 start-0 p-1">
@@ -219,9 +206,7 @@
                   </div>
                 </div>
                 <div class="card-body p-2 d-flex justify-content-between">
-                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="openStlViewer('{{ m.file.url|escapejs }}')" title="Vorschau">
-                    <i class="fas fa-vr-cardboard"></i>
-                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" onclick="openStlViewer('{{ m.file.url|escapejs }}')" title="Vorschau"><i class="fas fa-vr-cardboard"></i></button>
                   <div class="d-flex gap-1">
                     <a class="btn btn-sm btn-outline-primary" href="{{ m.file.url }}" download title="Herunterladen"><i class="fas fa-download"></i></a>
                     <a class="btn btn-sm btn-outline-danger" href="/model/{{ m.id }}/delete/" title="Löschen"><i class="fas fa-trash-alt"></i></a>
@@ -242,41 +227,33 @@
   </div>
 </div>
 
-<!-- Comments Backdrop + Drawer (keeps left sidebar intact) -->
+<!-- Comments Drawer -->
 <div id="commentsBackdrop" class="comments-backdrop"></div>
 <aside id="commentsDrawer" class="comments-drawer" aria-hidden="true">
   <div class="drawer-header">
     <div class="d-flex align-items-center gap-2">
-      <i class="far fa-comments"></i> &nbsp;&nbsp;
-      <strong>Kommentare</strong> &nbsp;&nbsp;
-      <span class="badge bg-secondary text-white" id="drawerCount"> {{ comments|length }}</span>
+      <i class="far fa-comments"></i>&nbsp;&nbsp;<strong>Kommentare</strong>&nbsp;&nbsp;
+      <span class="badge bg-secondary text-white" id="drawerCount">{{ comments|length }}</span>
     </div>
     <button id="closeComments" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></button>
   </div>
-
   <div id="commentsList" class="drawer-body">
     {% for c in comments %}
       <div class="msg {% if c.author_id == request.user.id %}mine{% endif %}">
         <img class="avatar" src="{{ c.author.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}" alt="avatar">
         <div>
           <div class="bubble">{{ c.content|linebreaksbr }}</div>
-          <div class="meta">
-            {{ c.author.get_full_name|default:c.author.username }} ·
-            <span title="{{ c.created_at|date:'Y-m-d H:i' }}">{{ c.created_at|timesince }} ago</span>
-          </div>
+          <div class="meta">{{ c.author.get_full_name|default:c.author.username }} · <span title="{{ c.created_at|date:'Y-m-d H:i' }}">{{ c.created_at|timesince }} ago</span></div>
         </div>
       </div>
     {% empty %}
       <div class="text-muted">Noch keine Kommentare.</div>
     {% endfor %}
   </div>
-
   <div class="drawer-footer">
     {% if can_comment %}
-    <form id="commentForm">
-      {% csrf_token %}
-      <textarea id="commentText" class="form-control mb-2" rows="1" maxlength="2000"
-                placeholder="Kommentar schreiben… (Enter = senden, Shift+Enter = Zeilenumbruch)"></textarea>
+    <form id="commentForm">{% csrf_token %}
+      <textarea id="commentText" class="form-control mb-2" rows="1" maxlength="2000" placeholder="Kommentar schreiben… (Enter=senden, Shift+Enter=Zeilenumbruch)"></textarea>
       <div class="d-flex justify-content-between align-items-center">
         <small class="text-muted">Nur Besitzer &amp; Freigegebene können kommentieren.</small>
         <button class="btn btn-primary btn-sm" type="submit">Senden</button>
@@ -288,28 +265,35 @@
   </div>
 </aside>
 
-<!-- Fullscreen Image Viewer -->
+<!-- Fullscreen Viewer -->
 <div id="viewer" class="d-none">
   <div id="viewerBackdrop"></div>
   <div id="viewerToolbar" class="shadow">
     <button class="btn btn-light btn-sm" onclick="zoomBy(1.2)" title="Vergrößern"><i class="fas fa-search-plus"></i></button>
     <button class="btn btn-light btn-sm" onclick="zoomBy(1/1.2)" title="Verkleinern"><i class="fas fa-search-minus"></i></button>
     <a id="viewerDownload" class="btn btn-light btn-sm" href="#" download title="Herunterladen"><i class="fas fa-download"></i></a>
+    <button id="viewerEdit" class="btn btn-primary btn-sm" title="Bearbeiten"><i class="fas fa-pen"></i> Bearbeiten</button>
     <button class="btn btn-light btn-sm" onclick="closeViewer()" title="Schließen"><i class="fas fa-times"></i></button>
   </div>
   <img id="viewerImg" src="" alt="Vorschau">
 </div>
 
-<!-- STL Viewer Modal -->
-<div class="modal fade" id="stlModal" tabindex="-1" aria-labelledby="stlModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+<!-- TUI Editor Modal (kept fullscreen) -->
+<div class="modal fade modal-fullscreen" id="imageEditorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-fullscreen">
     <div class="modal-content">
       <div class="modal-header">
-        <h6 class="modal-title" id="stlModalLabel">3D Vorschau (.stl)</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        <div class="d-flex align-items-center gap-2">
+          <h5 class="modal-title me-2">Bild bearbeiten</h5>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReset">Zurücksetzen</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btnSave">Speichern</button>
+          <button type="button" class="btn btn-success btn-sm" id="btnSaveCopy">Als Kopie speichern</button>
+          <button type="button" class="btn btn-outline-info btn-sm" id="btnDownload">Download</button>
+        </div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal" aria-label="Schließen"></button>
       </div>
-      <div class="modal-body p-0">
-        <div id="stlCanvas"></div>
+      <div class="modal-body">
+        <div id="tui-editor-wrap"></div>
       </div>
     </div>
   </div>
@@ -317,552 +301,265 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- TUI deps (order matters) -->
+<script src="https://uicdn.toast.com/tui-code-snippet/latest/tui-code-snippet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.6.0/fabric.min.js"></script>
+<script src="https://uicdn.toast.com/tui-color-picker/latest/tui-color-picker.js"></script>
+<script src="https://uicdn.toast.com/tui-image-editor/latest/tui-image-editor.min.js"></script>
+
 <script>
-  // ---------- CSRF ----------
-  function getCookie(name){ const v=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return v? v.pop():''; }
-  const CSRF_TOKEN = getCookie('csrftoken');
+/* ---------- Helpers ---------- */
+function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m? m.pop():''; }
+const CSRF_TOKEN=getCookie('csrftoken');
 
-  // ---------- Comments Drawer ----------
-  const btnComments = document.getElementById('btnComments');
-  const drawer = document.getElementById('commentsDrawer');
-  const backdrop = document.getElementById('commentsBackdrop');
-  const closeBtn = document.getElementById('closeComments');
-  const commentsList = document.getElementById('commentsList');
-  const drawerCount = document.getElementById('drawerCount');
-  const headerCount = document.getElementById('commentsCount');
+/* ---------- Comments drawer ---------- */
+const btnComments=document.getElementById('btnComments');
+const drawer=document.getElementById('commentsDrawer');
+const backdrop=document.getElementById('commentsBackdrop');
+document.getElementById('closeComments').addEventListener('click',()=>{drawer.classList.remove('open');backdrop.classList.remove('show')});
+btnComments.addEventListener('click',()=>{drawer.classList.add('open');backdrop.classList.add('show')});
+backdrop.addEventListener('click',()=>{drawer.classList.remove('open');backdrop.classList.remove('show')});
 
-  function openDrawer(){ drawer.classList.add('open'); backdrop.classList.add('show'); drawer.setAttribute('aria-hidden','false'); scrollToBottom(); }
-  function closeDrawer(){ drawer.classList.remove('open'); backdrop.classList.remove('show'); drawer.setAttribute('aria-hidden','true'); }
-  btnComments.addEventListener('click', openDrawer);
-  backdrop.addEventListener('click', closeDrawer);
-  closeBtn.addEventListener('click', closeDrawer);
-
-  function scrollToBottom(){ commentsList.scrollTop = commentsList.scrollHeight; }
-
-  // Auto-grow textarea + Enter to send
-  const ta = document.getElementById('commentText');
-  if (ta) {
-    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(160, ta.scrollHeight) + 'px'; };
-    ta.addEventListener('input', grow); grow();
-    ta.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        document.querySelector('#commentForm button[type="submit"]').click();
-      }
-    });
-  }
-
-  // Post comment (AJAX)
-  {% if can_comment %}
-  const form = document.getElementById('commentForm');
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    const content = (ta.value || '').trim();
-    if (!content) return;
-
-    const fd = new FormData();
-    fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
-    fd.append('content', content);
-
-    fetch("{% url 'add_comment' patient.id %}", { method:'POST', body: fd, headers:{ 'X-CSRFToken': CSRF_TOKEN }})
-      .then(r => r.json())
-      .then(data => {
-        if (!data.ok) { alert(data.error || 'Kommentar konnte nicht gespeichert werden.'); return; }
-
-        const item = document.createElement('div');
-        item.className = 'msg mine';
-        const myAvatar = "{{ request.user.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}";
-        const myName = "{{ request.user.get_full_name|default:request.user.username }}";
-        item.innerHTML = `
-          <img class="avatar" src="${myAvatar}" alt="avatar">
-          <div>
-            <div class="bubble"></div>
-            <div class="meta">${myName} · <span>soeben</span></div>
-          </div>`;
-        item.querySelector('.bubble').textContent = data.content;
-
-        commentsList.appendChild(item);
-        ta.value = ''; ta.dispatchEvent(new Event('input'));
-        scrollToBottom();
-
-        const newCount = (parseInt(drawerCount.textContent || '0', 10) + 1);
-        drawerCount.textContent = newCount;
-        headerCount.textContent = newCount;
-        headerCount.classList.remove('d-none');
-      })
-      .catch(() => alert('Netzwerkfehler beim Senden des Kommentars.'));
-  });
-  {% endif %}
-
-  // ---------- Drag & Drop Uploads (images/videos/STL) ----------
-  const dropzone = document.getElementById('dropzone');
-  const filePicker = document.getElementById('filePicker');
-  const uploadQueue = document.getElementById('uploadQueue');
-  const queueItems = document.getElementById('queueItems');
-
-  dropzone.addEventListener('click', ()=> filePicker.click());
-  dropzone.addEventListener('dragover', (e)=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
-  dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('dragover'));
-  dropzone.addEventListener('drop', (e)=>{ e.preventDefault(); dropzone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
-  filePicker.addEventListener('change', (e)=> handleFiles(e.target.files));
-
-  function handleFiles(fileList){
-    const files = Array.from(fileList); // allow image/video/stl
-    if(!files.length) return;
-    uploadQueue.classList.remove('d-none');
-    processQueue(files);
-  }
-
-  async function processQueue(files){
-    for (const file of files){
-      const row = addQueueItem(file);
-      try{
-        await uploadFileXHR(file, pct=> updateQueueItem(row, pct));
-        markQueueItemDone(row);
-      }catch(err){
-        markQueueItemError(row, err.message || 'Fehler');
-      }
-    }
-    window.location.reload();
-  }
-
-  function addQueueItem(file){
-    const row = document.createElement('div');
-    row.className = 'uq-item border rounded p-2';
-    row.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="file-meta"><strong>${escapeHtml(file.name)}</strong>
-          <span class="text-muted">(${file.type || 'Datei'}, ${(file.size/1024/1024).toFixed(1)} MB)</span>
-        </div>
-        <div class="status small text-muted">Wartet…</div>
-      </div>
-      <div class="progress mt-2"><div class="progress-bar" role="progressbar" style="width:0%"></div></div>`;
-    queueItems.appendChild(row);
-    return row;
-  }
-  function updateQueueItem(row, pct){
-    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
-    bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
-    status.textContent = `Hochladen… ${pct.toFixed(0)}%`;
-  }
-  function markQueueItemDone(row){
-    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
-    bar.classList.add('bg-success'); bar.style.width='100%'; status.textContent='Fertig';
-  }
-  function markQueueItemError(row,msg){
-    const bar=row.querySelector('.progress-bar'); const status=row.querySelector('.status');
-    bar.classList.add('bg-danger'); status.textContent='Fehler: ' + msg;
-  }
-
-  function uploadFileXHR(file, onProgress){
-    return new Promise((resolve, reject)=>{
-      const lname = (file.name || '').toLowerCase();
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-      const isStl   = lname.endsWith('.stl') || file.type === 'model/stl' || file.type === 'application/sla';
-
-      const URL_UPLOAD_IMAGES = "{% url 'upload_images' patient.id %}";
-      const URL_UPLOAD_VIDEOS = "{% url 'upload_videos' patient.id %}";
-      const URL_UPLOAD_MODELS = "{% url 'upload_models' patient.id %}";
-
-      const url   = isImage ? URL_UPLOAD_IMAGES :
-                    isVideo ? URL_UPLOAD_VIDEOS :
-                    isStl   ? URL_UPLOAD_MODELS : null;
-      const field = isImage ? "images" :
-                    isVideo ? "videos" :
-                    isStl   ? "models" : null;
-
-      if (!url || !field) { reject(new Error('Nicht unterstützter Dateityp')); return; }
-
-      const xhr=new XMLHttpRequest();
-      xhr.open('POST', url);
-      xhr.setRequestHeader('X-CSRFToken', CSRF_TOKEN);
-
-      xhr.upload.addEventListener('progress', (e)=>{ if(e.lengthComputable && onProgress){ onProgress((e.loaded/e.total)*100); }});
-      xhr.onreadystatechange = function(){
-        if(xhr.readyState===4){
-          if(xhr.status>=200 && xhr.status<300) resolve();
-          else reject(new Error('HTTP ' + xhr.status));
-        }
-      };
-
-      const fd=new FormData();
-      fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
-      fd.append(field, file);
-      xhr.send(fd);
-    });
-  }
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
-
-  // ---------- Fullscreen Image Viewer (zoom, pan, keyboard nav) ----------
-  let vOpen=false, s=1, tx=0, ty=0;
-  let IMAGE_SRCS = Array.from(document.querySelectorAll('.img-thumb')).map(el => el.getAttribute('src'));
-  let CURRENT_INDEX = 0;
-
-  const viewer=document.getElementById('viewer');
-  const viewerImg=document.getElementById('viewerImg');
-  const viewerDownload=document.getElementById('viewerDownload');
-
-  function collectImageSrcs(){ IMAGE_SRCS = Array.from(document.querySelectorAll('.img-thumb')).map(el => el.getAttribute('src')); }
-
-  function openViewerIndex(i){
-    collectImageSrcs();
-    if(!IMAGE_SRCS.length) return;
-    CURRENT_INDEX = Math.max(0, Math.min(i, IMAGE_SRCS.length-1));
-    openViewer(IMAGE_SRCS[CURRENT_INDEX]);
-  }
-  function openViewer(src){
-    vOpen=true; s=1; tx=0; ty=0;
-    viewerImg.src=src; viewerDownload.href=src; setTransform(); viewer.classList.remove('d-none');
-  }
-  function closeViewer(){ vOpen=false; viewer.classList.add('d-none'); viewerImg.src=''; }
-
-  function setTransform(){ viewerImg.style.setProperty('--s', s); viewerImg.style.setProperty('--tx', tx+'px'); viewerImg.style.setProperty('--ty', ty+'px'); }
-  function zoomBy(f){ s=Math.max(1, Math.min(8, s*f)); if(s===1){ tx=0; ty=0; } setTransform(); }
-
-  viewer.addEventListener('wheel', (e)=>{ if(!vOpen) return; e.preventDefault(); const d=e.deltaY||e.wheelDelta; zoomBy(d>0?1/1.15:1.15); }, {passive:false});
-  let dragging=false, sx=0, sy=0;
-  viewerImg.addEventListener('mousedown', (e)=>{ if(s===1) return; dragging=true; sx=e.clientX; sy=e.clientY; viewer.classList.add('grabbing'); });
-  window.addEventListener('mousemove', (e)=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; tx+=dx; ty+=dy; setTransform(); });
-  window.addEventListener('mouseup', ()=>{ dragging=false; viewer.classList.remove('grabbing'); });
-
-  let touching=false, prevDist=0;
-  viewerImg.addEventListener('touchstart', (e)=>{ if(e.touches.length===1 && s>1){ touching=true; sx=e.touches[0].clientX; sy=e.touches[0].clientY; } else if(e.touches.length===2){ touching=false; prevDist=dist(e.touches[0], e.touches[1]); } }, {passive:false});
-  viewerImg.addEventListener('touchmove', (e)=>{ if(e.touches.length===1 && s>1 && touching){ const cx=e.touches[0].clientX, cy=e.touches[0].clientY; const dx=cx-sx, dy=cy-sy; sx=cx; sy=cy; tx+=dx; ty+=dy; setTransform(); } else if(e.touches.length===2){ e.preventDefault(); const d=dist(e.touches[0], e.touches[1]); const f=d/(prevDist||d); prevDist=d; zoomBy(f); } }, {passive:false});
-  viewerImg.addEventListener('touchend', ()=>{ touching=false; });
-  function dist(a,b){ const dx=a.clientX-b.clientX, dy=a.clientY-b.clientY; return Math.hypot(dx,dy); }
-
-  document.getElementById('viewerBackdrop').addEventListener('click', closeViewer);
-
-  window.addEventListener('keydown', (e)=>{
-    if(!vOpen) return;
-    if(e.key==='Escape'){ e.preventDefault(); closeViewer(); }
-    else if(e.key==='ArrowRight'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX+1)%IMAGE_SRCS.length; openViewer(IMAGE_SRCS[CURRENT_INDEX]); }
-    else if(e.key==='ArrowLeft'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX-1+IMAGE_SRCS.length)%IMAGE_SRCS.length; openViewer(IMAGE_SRCS[CURRENT_INDEX]); }
-    else if(e.key==='d' || e.key==='D'){ e.preventDefault(); viewerDownload.click(); }
-  });
-
-  // expose for thumbnails
-  window.openViewerIndex = openViewerIndex;
-
-  // NOTE: Removed old "Lazy STL Viewer" that used three.min.js (deprecated).
-  // The new ES-module viewer is defined in the next <script type="module">.
-</script>
-
-<!-- Modern STL viewer using ES modules (Three r150+) -->
-<script type="module">
-  // Define global function used by your buttons: onclick="openStlViewer('...')"
-  window.openStlViewer = async (url) => {
-    // Dynamically import ES modules (fast, cached after first load)
-    const THREE = await import('https://unpkg.com/three@0.158.0/build/three.module.js');
-    const { OrbitControls } = await import('https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js');
-    const { STLLoader }   = await import('https://unpkg.com/three@0.158.0/examples/jsm/loaders/STLLoader.js');
-
-    const el = document.getElementById('stlCanvas');
-    el.innerHTML = '';
-
-    const scene   = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
-
-    const camera  = new THREE.PerspectiveCamera(60, el.clientWidth / el.clientHeight, 0.1, 5000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(el.clientWidth, el.clientHeight);
-    el.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
-    // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-    dir.position.set(1, 1, 1);
-    scene.add(dir);
-
-    // Load STL
-    const loader = new STLLoader();
-    loader.load(url, (geom) => {
-      const mat  = new THREE.MeshPhongMaterial({ color: 0x29a3ff, specular: 0x111111, shininess: 40 });
-      const mesh = new THREE.Mesh(geom, mat);
-      scene.add(mesh);
-
-      // Center & fit
-      const box    = new THREE.Box3().setFromObject(mesh);
-      const size   = box.getSize(new THREE.Vector3()).length();
-      const center = box.getCenter(new THREE.Vector3());
-      mesh.position.sub(center);
-
-      camera.position.set(size * 0.6, size * 0.6, size * 0.8);
-      controls.update();
-    });
-
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('stlModal'));
-    modal.show();
-
-    // Resize
-    const ro = new ResizeObserver(() => {
-      camera.aspect = el.clientWidth / el.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(el.clientWidth, el.clientHeight);
-    });
-    ro.observe(el);
-
-    // Render loop
-    (function render() {
-      requestAnimationFrame(render);
-      controls.update();
-      renderer.render(scene, camera);
-    })();
-  };
-</script>
-
-<!-- Import map -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
-  }
+/* ---------- Upload (minimal) ---------- */
+const dropzone=document.getElementById('dropzone'), picker=document.getElementById('filePicker');
+dropzone.addEventListener('click',()=>picker.click());
+dropzone.addEventListener('dragover',e=>{e.preventDefault();dropzone.classList.add('dragover')});
+dropzone.addEventListener('dragleave',()=>dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop',e=>{e.preventDefault();dropzone.classList.remove('dragover');handleFiles(e.dataTransfer.files)});
+picker.addEventListener('change',e=>handleFiles(e.target.files));
+function handleFiles(list){
+  const files=[...list]; if(!files.length) return;
+  const U_IMG="{% url 'upload_images' patient.id %}", U_VID="{% url 'upload_videos' patient.id %}", U_STL="{% url 'upload_models' patient.id %}";
+  (async()=>{for(const f of files){
+    const n=(f.name||'').toLowerCase();
+    const isImg=f.type.startsWith('image/'); const isVid=f.type.startsWith('video/'); const isStl=n.endsWith('.stl')||f.type==='model/stl'||f.type==='application/sla';
+    let url=null, field=null;
+    if(isImg){url=U_IMG; field='images'} else if(isVid){url=U_VID; field='videos'} else if(isStl){url=U_STL; field='models'} else {continue;}
+    const fd=new FormData(); fd.append('csrfmiddlewaretoken',CSRF_TOKEN); fd.append(field,f);
+    await fetch(url,{method:'POST',headers:{'X-CSRFToken':CSRF_TOKEN},body:fd});
+  } location.reload(); })();
 }
-</script>
 
-<script type="module">
-  // -- Helpers for Bootstrap 4/5 compatibility --
-  function showModal(el) {
-    if (window.bootstrap && bootstrap.Modal) {
-      // BS ≥5
-      const inst = (bootstrap.Modal.getOrCreateInstance)
-        ? bootstrap.Modal.getOrCreateInstance(el)
-        : new bootstrap.Modal(el);
-      inst.show();
-      return inst;
-    } else if (window.jQuery && typeof jQuery(el).modal === 'function') {
-      // BS4 (jQuery)
-      jQuery(el).modal('show');
-      return null;
-    }
-  }
-  function hideModal(el) {
-    if (window.bootstrap && bootstrap.Modal) {
-      let inst = null;
-      if (typeof bootstrap.Modal.getInstance === 'function') {
-        inst = bootstrap.Modal.getInstance(el);
-      }
-      if (!inst) {
-        try { inst = new bootstrap.Modal(el); } catch(e) {}
-      }
-      if (inst && typeof inst.hide === 'function') inst.hide();
-    } else if (window.jQuery && typeof jQuery(el).modal === 'function') {
-      jQuery(el).modal('hide');
-    }
-  }
+/* ---------- Fullscreen image viewer ---------- */
+let s=1,tx=0,ty=0, IMAGES=[], CURRENT_INDEX=0;
+const viewer=document.getElementById('viewer');
+const viewerImg=document.getElementById('viewerImg');
+const viewerDownload=document.getElementById('viewerDownload');
+const viewerEdit=document.getElementById('viewerEdit');
+const viewerBackdrop=document.getElementById('viewerBackdrop');
 
-  // -- Lazy imports (cached) --
-  let _mods;
-  async function useThree() {
-    if (_mods) return _mods;
-    const THREE              = await import('three');
-    const { OrbitControls }  = await import('three/addons/controls/OrbitControls.js');
-    const { STLLoader }      = await import('three/addons/loaders/STLLoader.js');
-    const { RoomEnvironment }= await import('three/addons/environments/RoomEnvironment.js');
-    _mods = { THREE, OrbitControls, STLLoader, RoomEnvironment };
-    return _mods;
-  }
+function collectImages(){
+  IMAGES = Array.from(document.querySelectorAll('.img-thumb')).map(el => ({
+    src: el.getAttribute('src'),
+    id:  el.dataset.id
+  }));
+}
+collectImages();
 
-  // -- Main viewer (color picker + fullscreen + cleanup) --
-  window.openStlViewer = async (url) => {
-    try {
-      const { THREE, OrbitControls, STLLoader, RoomEnvironment } = await useThree();
-      const el = document.getElementById('stlCanvas');
-      const modalEl = document.getElementById('stlModal');
-      if (!el || !modalEl) return;
+function openViewerIndex(i){
+  if(!IMAGES.length) collectImages();
+  CURRENT_INDEX = Math.max(0, Math.min(i, IMAGES.length-1));
+  openViewer(IMAGES[CURRENT_INDEX]);
+}
+window.openViewerIndex = openViewerIndex;
 
-      el.innerHTML = '';
-      el.style.position = 'relative';
+function openViewer(obj){
+  s=1; tx=0; ty=0;
+  viewerImg.style.setProperty('--s',1); viewerImg.style.setProperty('--tx','0px'); viewerImg.style.setProperty('--ty','0px');
+  viewerImg.src = obj.src; viewerDownload.href = obj.src;
+  viewer.classList.remove('d-none');
+}
+function closeViewer(){ viewer.classList.add('d-none'); viewerImg.src=''; }
+function zoomBy(f){ s=Math.max(1,Math.min(8,s*f)); if(s===1){tx=0;ty=0} viewerImg.style.setProperty('--s',s); viewerImg.style.setProperty('--tx',tx+'px'); viewerImg.style.setProperty('--ty',ty+'px'); }
 
-      // Renderer
-      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(el.clientWidth, el.clientHeight);
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.1;
-      renderer.physicallyCorrectLights = true;
-      el.appendChild(renderer.domElement);
+viewer.addEventListener('wheel',e=>{ e.preventDefault(); const d=e.deltaY||e.wheelDelta; zoomBy(d>0?1/1.15:1.15) }, {passive:false});
+let dragging=false,sx=0,sy=0;
+viewerImg.addEventListener('mousedown',e=>{ if(s===1) return; dragging=true; sx=e.clientX; sy=e.clientY; viewer.classList.add('grabbing'); });
+window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; tx+=dx; ty+=dy; viewerImg.style.setProperty('--tx',tx+'px'); viewerImg.style.setProperty('--ty',ty+'px'); });
+window.addEventListener('mouseup',()=>{ dragging=false; viewer.classList.remove('grabbing'); });
+viewerBackdrop.addEventListener('click', closeViewer);
 
-      // Scene
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x111111);
-      const camera = new THREE.PerspectiveCamera(60, el.clientWidth/el.clientHeight, 0.1, 5000);
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
+window.addEventListener('keydown',e=>{
+  if(viewer.classList.contains('d-none')) return;
+  if(e.key==='Escape'){ e.preventDefault(); closeViewer(); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX+1)%IMAGES.length; openViewer(IMAGES[CURRENT_INDEX]); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); CURRENT_INDEX=(CURRENT_INDEX-1+IMAGES.length)%IMAGES.length; openViewer(IMAGES[CURRENT_INDEX]); }
+  else if(e.key==='d' || e.key==='D'){ e.preventDefault(); viewerDownload.click(); }
+});
 
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
-      const dir1 = new THREE.DirectionalLight(0xffffff, 0.9); dir1.position.set(2,2,1); scene.add(dir1);
-      const dir2 = new THREE.DirectionalLight(0xffffff, 0.3); dir2.position.set(-2,1,-1); scene.add(dir2);
+/* ---------- TUI editor (init on modal shown) ---------- */
+let tuiEditor=null, currentEditUrl=null, currentEditId=null;
+const modalEl=document.getElementById('imageEditorModal');
 
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+function openTUIEditor(url, id){
+  currentEditUrl=url; currentEditId=id;
 
-      // Overlay
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);color:#fff;font:600 14px system-ui';
-      overlay.textContent = 'Laden…';
-      el.appendChild(overlay);
+  // Close viewer first
+  closeViewer();
 
-      // Toolbar
-      const bar = document.createElement('div');
-      bar.style.cssText = 'position:absolute;top:12px;right:12px;display:flex;gap:8px;background:#ffffffcc;padding:6px;border-radius:8px;backdrop-filter:blur(4px)';
-      const colorInput = document.createElement('input');
-      colorInput.type = 'color';
-      const savedColor = localStorage.getItem('stlColor') || '#d2b48c';
-      colorInput.value = savedColor;
-      colorInput.title = 'Farbe wählen';
-      const mkBtn = (txt,t)=>{const b=document.createElement('button');b.type='button';b.textContent=txt;b.title=t;b.style.cssText='border:1px solid #ddd;background:#fff;border-radius:6px;padding:2px 8px;cursor:pointer';return b;};
-      const btnFS   = mkBtn('⤢','Vollbild');
-      const btnReset= mkBtn('⟲','Ansicht zurücksetzen');
-      const btnClose= mkBtn('✕','Schließen');
-      bar.append(colorInput, btnFS, btnReset, btnClose);
-      el.appendChild(bar);
+  // Build editor AFTER modal is visible
+  const onShown = () => {
+    try { tuiEditor?.destroy(); } catch(_) {}
+    tuiEditor = new tui.ImageEditor('#tui-editor-wrap', {
+      includeUI: {
+        loadImage: { path: currentEditUrl, name: 'image' },
+        menu: ['crop','draw','shape','text','filter','rotate','flip'],
+        initMenu: 'crop',
+        menuBarPosition: 'bottom'
+      },
+      cssMaxWidth: 1600,
+      cssMaxHeight: 1000,
+      selectionStyle: { cornerSize: 16, rotatingPointOffset: 40 }
+    });
+    setTimeout(()=>{ try{ tuiEditor.ui.resizeEditor(); }catch(_){ } }, 50);
 
-      // Load STL
-      const loader = new STLLoader();
-      let mesh, material;
-      loader.load(
-        url,
-        (geom) => {
-          overlay.remove();
-          if (geom.computeVertexNormals) geom.computeVertexNormals();
-          const hasVertexColors = !!(geom.getAttribute && geom.getAttribute('color'));
-          material = new THREE.MeshStandardMaterial({
-            vertexColors: hasVertexColors,
-            color: hasVertexColors ? undefined : savedColor,
-            roughness: 0.55, metalness: 0.05, envMapIntensity: 0.8
-          });
-          mesh = new THREE.Mesh(geom, material);
-          scene.add(mesh);
-
-          const box = new THREE.Box3().setFromObject(mesh);
-          const size = box.getSize(new THREE.Vector3());
-          const center = box.getCenter(new THREE.Vector3());
-          mesh.position.sub(center);
-
-          const maxDim = Math.max(size.x, size.y, size.z) || 100;
-          const dist = maxDim * 1.6;
-          camera.position.set(dist, dist, dist);
-          controls.target.set(0,0,0);
-          controls.update();
-        },
-        (xhr) => { if (xhr.lengthComputable) overlay.textContent = `Laden… ${((xhr.loaded/xhr.total)*100|0)}%`; },
-        (err) => { console.error(err); overlay.textContent='Fehler beim Laden'; setTimeout(()=>overlay.remove(),1500); }
-      );
-
-      // Actions
-      colorInput.addEventListener('input', () => {
-        localStorage.setItem('stlColor', colorInput.value);
-        if (material) { material.vertexColors = false; material.color.set(colorInput.value); material.needsUpdate = true; }
-      });
-      btnReset.addEventListener('click', () => {
-        if (!mesh) return;
-        const box = new THREE.Box3().setFromObject(mesh);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z) || 100;
-        const dist = maxDim * 1.6;
-        camera.position.set(dist, dist, dist);
-        controls.target.set(0,0,0);
-        controls.update();
-      });
-      btnFS.addEventListener('click', () => {
-        const target = el;
-        if (!document.fullscreenElement) target.requestFullscreen?.();
-        else document.exitFullscreen?.();
-      });
-      btnClose.addEventListener('click', () => hideModal(modalEl));
-
-      // Show modal (BS4/BS5)
-      showModal(modalEl);
-
-      // Resize + render + cleanup
-      const ro = new ResizeObserver(() => {
-        camera.aspect = el.clientWidth / el.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(el.clientWidth, el.clientHeight);
-      });
-      ro.observe(el);
-
-      let alive = true;
-      (function animate(){ if(!alive) return; requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
-
-      modalEl.addEventListener('hidden.bs.modal', () => {
-        alive = false;
-        ro.disconnect();
-        renderer.dispose();                 // free GPU
-        while (el.firstChild) el.removeChild(el.firstChild);
-      }, { once:true });
-
-    } catch (e) {
-      console.error('Viewer init failed', e);
-      alert('3D-Viewer konnte nicht geladen werden.');
-    }
+    document.getElementById('btnReset').onclick = async () => {
+      try {
+        await tuiEditor.loadImageFromURL(currentEditUrl, 'image');
+        tuiEditor.clearUndoStack();
+        setTimeout(()=>{ try{ tuiEditor.ui.resizeEditor(); }catch(_){ } }, 30);
+      } catch(e){ alert('Zurücksetzen fehlgeschlagen.'); }
+    };
+    document.getElementById('btnSave').onclick = async () => {
+      try{
+        const dataURL=tuiEditor.toDataURL(); const blob=await (await fetch(dataURL)).blob();
+        const fd=new FormData(); fd.append('image', new File([blob],'edited.png',{type:'image/png'}));
+        const res=await fetch(`/image/${currentEditId}/edit/`, {method:'POST', headers:{'X-CSRFToken':CSRF_TOKEN}, body:fd});
+        if(!res.ok) throw new Error();
+        location.reload();
+      }catch(_){ alert('Speichern fehlgeschlagen.'); }
+    };
+    document.getElementById('btnSaveCopy').onclick = async () => {
+      try{
+        const dataURL=tuiEditor.toDataURL(); const blob=await (await fetch(dataURL)).blob();
+        const fd=new FormData(); fd.append('image', new File([blob],'edited.png',{type:'image/png'})); fd.append('as_new','1');
+        const res=await fetch(`/image/${currentEditId}/edit/`, {method:'POST', headers:{'X-CSRFToken':CSRF_TOKEN}, body:fd});
+        if(!res.ok) throw new Error();
+        location.reload();
+      }catch(_){ alert('Speichern fehlgeschlagen.'); }
+    };
+    document.getElementById('btnDownload').onclick = () => {
+      const a=document.createElement('a'); a.href=tuiEditor.toDataURL(); a.download=`image-${currentEditId||'edited'}.png`; document.body.appendChild(a); a.click(); a.remove();
+    };
   };
 
-  // -- Real STL thumbnails (unchanged) --
-  let _thumbInit = false;
-  async function renderThumb(imgEl) {
-    const url = imgEl.dataset.stl;
-    if (!url) return;
-    const { THREE, STLLoader } = await useThree();
+  modalEl.addEventListener('shown.bs.modal', onShown, {once:true});
+  bootstrap.Modal.getOrCreateInstance(modalEl).show();
 
-    const w = parseInt(imgEl.getAttribute('width') || '220', 10);
-    const h = parseInt(imgEl.getAttribute('height') || '150', 10);
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    try { tuiEditor?.destroy(); } catch(_) {}
+    tuiEditor=null;
+  }, {once:true});
+}
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(w, h);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+viewerEdit.addEventListener('click', () => {
+  const item = IMAGES[CURRENT_INDEX];
+  if(!item) return;
+  openTUIEditor(item.src, item.id);
+});
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, w/h, 0.1, 5000);
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
+/* ---------- Three.js STL viewer (FULLSCREEN) with color controls ---------- */
+window.openStlViewer = async (url) => {
+  const THREE = await import('three'); // resolved by import map in <head>
+  const { OrbitControls } = await import('https://unpkg.com/three@0.158.0/examples/jsm/controls/OrbitControls.js');
+  const { STLLoader } = await import('https://unpkg.com/three@0.158.0/examples/jsm/loaders/STLLoader.js');
 
-    const loader = new STLLoader();
-    loader.load(url, (geom) => {
-      if (geom.computeVertexNormals) geom.computeVertexNormals();
-      const hasColors = !!(geom.getAttribute && geom.getAttribute('color'));
-      const mat = new THREE.MeshStandardMaterial({
-        vertexColors: hasColors, color: hasColors ? undefined : 0xd2b48c, roughness:.6, metalness:.05
-      });
-      const mesh = new THREE.Mesh(geom, mat);
-      scene.add(mesh);
+  // Modal skeleton: fullscreen
+  const md=document.createElement('div');
+  md.className='modal fade modal-fullscreen';
+  md.innerHTML=`
+    <div class="modal-dialog modal-fullscreen">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title">3D Vorschau (.stl)</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        </div>
+        <div class="modal-body p-0 position-relative">
+          <div id="stlWrap" class="position-relative" style="height:calc(100vh - 80px);background:#111"></div>
+          <div class="stl-controls">
+            <label>Objekt</label>
+            <input type="color" id="colModel" class="color" value="#29a3ff" title="Modellfarbe">
+            <label>Hintergrund</label>
+            <input type="color" id="colBg" class="color" value="#111111" title="Hintergrundfarbe">
+            <label>Glanz</label>
+            <input type="range" id="shininess" min="0" max="120" value="40" title="Shininess">
+            <label class="check"><input type="checkbox" id="wire"> Wireframe</label>
+            <label class="check"><input type="checkbox" id="autorotate"> Auto-Rotate</label>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(md);
+  const modal = new bootstrap.Modal(md);
+  const wrap = md.querySelector('#stlWrap');
 
-      const box = new THREE.Box3().setFromObject(mesh);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      mesh.position.sub(center);
+  // Three.js setup
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x111111);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 5000);
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  wrap.appendChild(renderer.domElement);
 
-      const maxDim = Math.max(size.x, size.y, size.z) || 100;
-      const dist = maxDim * 1.8;
-      camera.position.set(dist, dist * 0.6, dist);
-      camera.lookAt(0,0,0);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
 
-      renderer.render(scene, camera);
-      imgEl.src = renderer.domElement.toDataURL('image/png');
-      renderer.dispose();
-    }, undefined, () => {
-      imgEl.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#f2f2f2"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#888">3D Preview</text></svg>`);
-    });
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(1,1,1); scene.add(dir);
+
+  // UI refs
+  const colModel = md.querySelector('#colModel');
+  const colBg = md.querySelector('#colBg');
+  const shininess = md.querySelector('#shininess');
+  const wire = md.querySelector('#wire');
+  const autorotate = md.querySelector('#autorotate');
+
+  let mesh = null;
+  const material = new THREE.MeshPhongMaterial({ color: 0x29a3ff, shininess: 40 });
+
+  // Load STL
+  const loader = new STLLoader();
+  loader.load(url, (geom) => {
+    if (geom.computeVertexNormals) geom.computeVertexNormals();
+    mesh = new THREE.Mesh(geom, material);
+    scene.add(mesh);
+
+    // Fit
+    const box=new THREE.Box3().setFromObject(mesh);
+    const size=box.getSize(new THREE.Vector3());
+    const center=box.getCenter(new THREE.Vector3());
+    mesh.position.sub(center);
+
+    const maxDim = Math.max(size.x,size.y,size.z) || 100;
+    const dist = maxDim * 1.6;
+    camera.position.set(dist, dist*0.8, dist);
+    camera.lookAt(0,0,0);
+    controls.update();
+    render();
+  }, undefined, () => {
+    wrap.innerHTML='<div class="p-3 text-danger">STL konnte nicht geladen werden.</div>';
+  });
+
+  // Controls behavior
+  colModel.addEventListener('input', () => { material.color = new THREE.Color(colModel.value); });
+  colBg.addEventListener('input', () => { scene.background = new THREE.Color(colBg.value); });
+  shininess.addEventListener('input', () => { material.shininess = Number(shininess.value); });
+  wire.addEventListener('change', () => { material.wireframe = wire.checked; });
+
+  // Resize
+  const ro=new ResizeObserver(()=> {
+    const w=wrap.clientWidth, h=wrap.clientHeight||1;
+    renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix();
+  });
+  ro.observe(wrap);
+
+  // Loop
+  let alive = true;
+  function render(){ if(!alive) return; requestAnimationFrame(render);
+    if (autorotate.checked && mesh) mesh.rotation.y += 0.01;
+    controls.update(); renderer.render(scene,camera);
   }
 
-  const thumbEls = Array.from(document.querySelectorAll('img.stl-thumb[data-stl]'));
-  if (thumbEls.length && !_thumbInit) {
-    _thumbInit = true;
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) { renderThumb(e.target); io.unobserve(e.target); }
-      });
-    }, { rootMargin: '200px' });
-    thumbEls.forEach(el => io.observe(el));
-  }
+  md.addEventListener('hidden.bs.modal', ()=>{ alive=false; ro.disconnect(); renderer.dispose(); md.remove(); }, {once:true});
+  modal.show();
+};
 </script>
-
-
 {% endblock %}

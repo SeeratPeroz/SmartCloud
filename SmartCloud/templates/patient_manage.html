@@ -3,6 +3,103 @@
 {% block title %}Patient verwalten - CleverImplant{% endblock %}
 
 {% block content %}
+
+<style>
+  /* ✅ Share modal: keep inside viewport + make body scroll */
+  #shareModal .modal-dialog {
+    height: calc(100vh - 2rem);
+    margin: 1rem auto;
+    max-width: 900px;          /* nicer on large screens */
+    width: calc(100% - 1rem);  /* responsive */
+  }
+
+  #shareModal .modal-content {
+    max-height: calc(100vh - 2rem);
+  }
+
+  #shareModal .modal-body {
+    overflow-y: auto !important;
+    /* header+footer height varies; keep enough room */
+    max-height: calc(100vh - 12rem);
+    padding-top: 0; /* because sticky header already has its own padding */
+  }
+
+  /* Fallback if any global CSS breaks modal scrolling */
+  #shareModal.modal {
+    overflow-y: auto !important;
+  }
+
+  /* ✅ Sticky search: stays on top AND content doesn't hide behind it */
+  #shareModal .share-search-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #fff;
+    padding: .75rem 1rem .75rem 1rem;
+    border-bottom: 1px solid rgba(0,0,0,.08);
+  }
+
+  /* ✅ Create spacing so first rows never go under the sticky header */
+  /* We set this dynamically in JS too, but this is a safe default */
+  #shareModal .share-users-wrap {
+    padding-top: .75rem;
+  }
+
+  /* ✅ Better list spacing / alignment */
+  #shareModal .share-user-col {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+
+  #shareModal .share-user-item {
+    padding: .45rem .5rem;
+    border-radius: .6rem;
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    min-width: 0; /* allows text ellipsis to work */
+  }
+
+  #shareModal .share-user-item:hover {
+    background: rgba(0,0,0,.03);
+  }
+
+  /* ✅ Fix: checkbox pushes text too far left / overflow issues */
+  #shareModal .share-user-item .form-check-input {
+    margin-top: .25rem;
+    flex: 0 0 auto;
+  }
+
+  #shareModal .share-user-item .form-check-label {
+    margin: 0;
+    padding-left: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ✅ On mobile: one column and a bit more readable */
+  @media (max-width: 576px) {
+    #shareModal .modal-dialog {
+      width: calc(100% - .5rem);
+      margin: .25rem auto;
+      height: calc(100vh - .5rem);
+    }
+    #shareModal .modal-content {
+      max-height: calc(100vh - .5rem);
+    }
+    #shareModal .modal-body {
+      max-height: calc(100vh - 10.5rem);
+    }
+    #shareModal .share-search-sticky {
+      padding: .75rem .75rem .75rem .75rem;
+    }
+  }
+</style>
+
 <div class="container mt-4">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h2 class="h4 mb-0">Patient verwalten</h2>
@@ -49,10 +146,10 @@
       <div class="card shadow-sm h-100">
         <div class="card-header bg-white"><strong>Sichtbarkeit</strong></div>
         <div class="card-body">
-          <!-- Plain visibility form (PRIVATE / PUBLIC submit directly) -->
           <form id="visibilityForm" method="POST" action="{% url 'patient_manage' patient.id %}">
             {% csrf_token %}
             <input type="hidden" name="form" value="visibility">
+
             <div class="form-check">
               <input class="form-check-input" type="radio" name="visibility" id="vis_private" value="PRIVATE"
                      {% if patient.visibility == 'PRIVATE' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
@@ -60,14 +157,15 @@
                 Privat <small class="text-muted d-block">Nur Eigentümer und Admin/Manager.</small>
               </label>
             </div>
+
             <div class="form-check mt-2">
-              <!-- Clicking opens modal instead of submitting -->
               <input class="form-check-input" type="radio" name="visibility" id="vis_shared" value="SHARED"
                      {% if patient.visibility == 'SHARED' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
               <label class="form-check-label" for="vis_shared">
                 Geteilt <small class="text-muted d-block">Wählen Sie Benutzer im nächsten Schritt aus.</small>
               </label>
             </div>
+
             <div class="form-check mt-2">
               <input class="form-check-input" type="radio" name="visibility" id="vis_public" value="PUBLIC_ORG"
                      {% if patient.visibility == 'PUBLIC_ORG' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
@@ -79,6 +177,7 @@
             {% if can_edit %}
             <button id="btnSaveVisibility" type="submit" class="btn btn-primary btn-sm mt-3">Sichtbarkeit speichern</button>
             {% endif %}
+
             <div class="form-text mt-2">
               Hinweis: Bei <em>Geteilt</em> erscheint ein Dialog zum Auswählen der Benutzer.
             </div>
@@ -123,6 +222,7 @@
                 <button type="submit" class="btn btn-success btn-sm">Thumbnail hochladen/ersetzen</button>
                 {% endif %}
               </form>
+
               {% if patient.thumbnail and can_edit %}
               <form method="POST" class="mt-2" action="{% url 'patient_manage' patient.id %}">
                 {% csrf_token %}
@@ -147,30 +247,65 @@
       <form id="shareForm" method="POST" action="{% url 'patient_manage' patient.id %}">
         {% csrf_token %}
         <input type="hidden" name="form" value="set_shared">
+
         <div class="modal-header">
           <h5 class="modal-title" id="shareModalLabel">Benutzer auswählen</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
         </div>
+
         <div class="modal-body">
-          <div class="text-muted mb-2">Wählen Sie die Benutzer aus, mit denen der Patient geteilt werden soll.</div>
-          <div class="row row-cols-1 row-cols-sm-2 g-2">
-            {% for u in users %}
-              {% if u.id != patient.usrID.id %}
-              <div class="col">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="share_{{ u.id }}"
-                         name="share_with" value="{{ u.id }}"
-                         {% if u in patient.shared_with.all %}checked{% endif %}>
-                  <label class="form-check-label" for="share_{{ u.id }}">{{ u.get_full_name|default:u.username }}</label>
-                </div>
+          <!-- ✅ Sticky search + quick actions -->
+          <div class="share-search-sticky" id="shareStickyHeader">
+            <div class="text-muted mb-2">Wählen Sie die Benutzer aus, mit denen der Patient geteilt werden soll.</div>
+
+            <input id="shareSearchInput" type="text" class="form-control"
+                   placeholder="Suchen (Name / Username) …">
+
+            <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+              <button type="button" id="shareSelectAllVisible" class="btn btn-outline-secondary btn-sm">
+                Alle sichtbaren auswählen
+              </button>
+              <button type="button" id="shareClearAll" class="btn btn-outline-secondary btn-sm">
+                Auswahl löschen
+              </button>
+
+              <div class="ms-sm-auto small text-muted">
+                <span id="shareVisibleCount">0</span> sichtbar
               </div>
-              {% endif %}
-            {% endfor %}
+            </div>
           </div>
-          <div id="shareError" class="alert alert-danger d-none mt-3" role="alert">
-            Bitte wählen Sie mindestens einen Benutzer aus.
+
+          <!-- ✅ users list wrapper (we add top-padding dynamically = sticky header height) -->
+          <div class="share-users-wrap" id="shareUsersWrap">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mt-0" id="shareUsersGrid">
+              {% for u in users %}
+                {% if u.id != patient.usrID.id %}
+                <div class="col share-user-col"
+                     data-share-text="{{ u.get_full_name|default:u.username|lower }} {{ u.username|lower }}">
+                  <div class="form-check share-user-item" style="padding-left: 20px;">
+                    <input class="form-check-input" type="checkbox" id="share_{{ u.id }}"
+                           name="share_with" value="{{ u.id }}"
+                           {% if u in patient.shared_with.all %}checked{% endif %}>
+                    <label class="form-check-label" for="share_{{ u.id }}">
+                      {{ u.get_full_name|default:u.username }}
+                      {% if u.get_full_name %}<span class="text-muted">({{ u.username }})</span>{% endif %}
+                    </label>
+                  </div>
+                </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+
+            <div id="shareNoResults" class="text-muted small mt-3 d-none">
+              Keine Benutzer gefunden.
+            </div>
+
+            <div id="shareError" class="alert alert-danger d-none mt-3" role="alert">
+              Bitte wählen Sie mindestens einen Benutzer aus.
+            </div>
           </div>
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Abbrechen</button>
           <button id="shareOkBtn" type="submit" class="btn btn-primary">OK</button>
@@ -198,16 +333,14 @@ document.addEventListener('DOMContentLoaded', function () {
     return null;
   }
   function openShareModal(){ getModalInstance(shareModalEl)?.show(); }
-  function closeShareModal(){ getModalInstance(shareModalEl)?.hide(); }
 
   // Intercept radio changes:
   visPrivate?.addEventListener('change', function(e){
     if (!e.target.checked) return;
     if (!confirm('Alle bestehenden Freigaben werden entfernt. Fortfahren?')) {
-      // revert selection
       if (previousVis === 'SHARED') visShared.checked = true;
       else if (previousVis === 'PUBLIC_ORG') visPublic.checked = true;
-      else visPublic.checked = true; // fallback
+      else visPublic.checked = true;
       return;
     }
     previousVis = 'PRIVATE';
@@ -237,9 +370,80 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Validate at least one user before submitting the share form
+  // ✅ Share search + selection helpers
   const shareForm = document.getElementById('shareForm');
   const shareError = document.getElementById('shareError');
+  const searchInput = document.getElementById('shareSearchInput');
+  const grid = document.getElementById('shareUsersGrid');
+  const noResults = document.getElementById('shareNoResults');
+  const visibleCountEl = document.getElementById('shareVisibleCount');
+  const btnSelectAllVisible = document.getElementById('shareSelectAllVisible');
+  const btnClearAll = document.getElementById('shareClearAll');
+
+  const stickyHeader = document.getElementById('shareStickyHeader');
+  const usersWrap = document.getElementById('shareUsersWrap');
+
+  function updateStickyOffset(){
+    if (!stickyHeader || !usersWrap) return;
+    const h = stickyHeader.offsetHeight || 0;
+    usersWrap.style.paddingTop = (h + 8) + 'px'; // ✅ ensures content never goes behind sticky
+  }
+
+  function updateVisibleCount(){
+    if (!grid || !visibleCountEl) return;
+    const cols = grid.querySelectorAll('.share-user-col');
+    let visible = 0;
+    cols.forEach(col => {
+      if (!col.classList.contains('d-none')) visible++;
+    });
+    visibleCountEl.textContent = String(visible);
+    if (noResults){
+      noResults.classList.toggle('d-none', visible !== 0);
+    }
+  }
+
+  function filterUsers(){
+    if (!grid) return;
+    const q = (searchInput?.value || '').trim().toLowerCase();
+    const cols = grid.querySelectorAll('.share-user-col');
+    cols.forEach(col => {
+      const text = (col.getAttribute('data-share-text') || '');
+      const match = !q || text.includes(q);
+      col.classList.toggle('d-none', !match);
+    });
+    updateVisibleCount();
+  }
+
+  searchInput?.addEventListener('input', filterUsers);
+
+  btnSelectAllVisible?.addEventListener('click', function(){
+    if (!grid) return;
+    const cols = grid.querySelectorAll('.share-user-col:not(.d-none)');
+    cols.forEach(col => {
+      const cb = col.querySelector('input[name="share_with"]');
+      if (cb) cb.checked = true;
+    });
+  });
+
+  btnClearAll?.addEventListener('click', function(){
+    if (!grid) return;
+    const cbs = grid.querySelectorAll('input[name="share_with"]');
+    cbs.forEach(cb => cb.checked = false);
+  });
+
+  // When modal opens, focus search and refresh counts + sticky offset
+  shareModalEl?.addEventListener('shown.bs.modal', function(){
+    updateStickyOffset();
+    updateVisibleCount();
+    setTimeout(() => searchInput?.focus(), 150);
+  });
+
+  // Recalculate on resize/orientation change
+  window.addEventListener('resize', function(){
+    updateStickyOffset();
+  });
+
+  // Validate at least one user before submitting the share form
   shareForm?.addEventListener('submit', function(e){
     const anyChecked = !!shareForm.querySelector('input[name="share_with"]:checked');
     if (!anyChecked){
@@ -258,6 +462,11 @@ document.addEventListener('DOMContentLoaded', function () {
     previousVis = (document.querySelector('input[name="visibility"]:checked') || {}).value;
     openShareModal();
   }
+
+  // Initialize once
+  updateStickyOffset();
+  updateVisibleCount();
 });
 </script>
+
 {% endblock %}
