@@ -26,13 +26,14 @@ ASGI_APPLICATION = 'SmartCloud.asgi.application'  # Matches your project name
 # Channels settings
 # Use InMemoryChannelLayer for development; for production, consider using Redis or another backend.
 # For production, you would typically set up a Redis server and use 'channels_redis' as the backend.
-"""
+
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
-}"""
+}
 
+"""
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -41,6 +42,7 @@ CHANNEL_LAYERS = {
         },
     },
 }
+"""
 
 
 # Quick-start development settings - unsuitable for production

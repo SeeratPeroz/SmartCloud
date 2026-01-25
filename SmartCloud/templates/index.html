@@ -10,33 +10,272 @@
 /* Chat box base style */
 #chat-box {
     position: fixed;
-    bottom: -500px;
-    right: 20px;
-    width: 400px;
-    height: 450px;
-    border: 1px solid #ddd;
+    bottom: -600px;
+    right: 30px;
+    width: 380px;
+    height: 550px;
+    border-radius: 12px;
     background: white;
-    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
     z-index: 1051;
     display: flex;
     flex-direction: column;
-    transition: bottom 0.3s ease-in-out;
+    transition: bottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
 }
-#chat-box.open { bottom: 70px; }
+#chat-box.open { bottom: 90px; }
+
 #chat-toggle {
     position: fixed;
     bottom: 20px;
-    right: 20px;
-    background: #007bff;
+    right: 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
     border-radius: 50%;
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
     font-size: 24px;
     cursor: pointer;
     z-index: 1050;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+#chat-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+#chat-toggle:active {
+    transform: scale(0.95);
+}
+
+.chat-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+.chat-header strong {
+    font-size: 16px;
+    font-weight: 600;
+}
+.chat-close-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+.chat-close-btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.user-list-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
+}
+
+.user-search-container {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+}
+.user-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.user-search-input:focus {
+    border-color: #667eea;
+}
+.user-search-input::placeholder {
+    color: #9ca3af;
+}
+
+.user-item {
+    padding: 14px 20px;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: background 0.2s;
+}
+.user-item:hover {
+    background: #f9fafb;
+}
+.user-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+.user-name {
+    font-weight: 600;
+    color: #111827;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+.user-username {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.chat-subheader {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.back-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: #6b7280;
+    padding: 4px;
+    transition: color 0.2s;
+}
+.back-btn:hover {
+    color: #374151;
+}
+
+#chat-messages {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    background: #ffffff;
+}
+#chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+#chat-messages::-webkit-scrollbar-track {
+    background: #f3f4f6;
+}
+#chat-messages::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+.message-item {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+}
+.message-sender {
+    font-weight: 600;
+    font-size: 13px;
+    color: #667eea;
+    margin-bottom: 4px;
+}
+.message-content {
+    background: #f3f4f6;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    color: #374151;
+    max-width: 85%;
+}
+
+.chat-input-container {
+    padding: 14px 16px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 8px;
+    background: #ffffff;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+#chat-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+#chat-input:focus {
+    border-color: #667eea;
+}
+.send-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.send-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+.send-btn:active {
+    transform: translateY(0);
+}
+
+.no-users {
+    padding: 40px 20px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+}
+
+/* Unread badge */
+#unread-count {
+    display: none;
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #ef4444;
+    color: white;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    font-weight: 700;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
 /* Patient card */
 .patient-thumb {
     width: 100%;
@@ -212,31 +451,112 @@
   {% include 'newFall.html' %}
 </div>
 
-<button id="chat-toggle" title="Chat öffnen">💬</button>
+<button id="chat-toggle" title="Chat öffnen">
+  💬
+  <span id="unread-count">0</span>
+</button>
+
+<div id="chat-box">
+  <!-- Header -->
+  <div class="chat-header">
+    <strong id="chat-with">Chat auswählen</strong>
+    <button onclick="closeChatBox()" class="chat-close-btn">&times;</button>
+  </div>
+  
+  <!-- User list (shown by default) -->
+  <div id="user-list" style="flex:1; overflow-y:auto; display:flex; flex-direction:column;">
+    <div class="user-list-header">
+      Nachricht senden an:
+    </div>
+    <div class="user-search-container">
+      <input type="text" id="chat-user-search" class="user-search-input" placeholder="Benutzer suchen..." onkeyup="filterChatUsers()">
+    </div>
+    {% for user in users %}
+    <div onclick="startChat({{ user.id }}, '{{ user.get_full_name|default:user.username }}')" class="user-item" data-username="{{ user.username|lower }}" data-fullname="{{ user.get_full_name|default:user.username|lower }}">
+      <div class="user-avatar">
+        {{ user.get_full_name|default:user.username|slice:":1"|upper }}
+      </div>
+      <div class="user-info">
+        <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="user-username">@{{ user.username }}</div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="no-users">
+      Keine anderen Benutzer verfügbar
+    </div>
+    {% endfor %}
+  </div>
+  
+  <!-- Chat area (hidden until user selected) -->
+  <div id="chat-area" style="display:none; flex:1; display:flex; flex-direction:column;">
+    <div class="chat-subheader">
+      <button onclick="backToUserList()" class="back-btn">←</button>
+      <strong id="chat-username" style="color:#374151; font-size:14px;">Chat</strong>
+    </div>
+    <div id="chat-messages"></div>
+    <div class="chat-input-container">
+      <input id="chat-input" type="text" placeholder="Nachricht eingeben..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button onclick="sendMessage()" class="send-btn">Senden</button>
+    </div>
+  </div>
+</div>
 
 <script>
-document.getElementById("chat-toggle").addEventListener("click", function() {
-  document.getElementById("chat-box").classList.toggle("open");
-});
-function closeChatBox() {
-  document.getElementById("chat-box").classList.remove("open");
-}
-function confirmDelete(patientId, buttonElement) {
-  if (confirm("Sind Sie sicher, dass Sie diesen Patienten löschen möchten?")) {
-    window.location.href = `/delete_patient/${patientId}/`;
-  }
-}
 document.addEventListener('DOMContentLoaded', () => {
+  // Chat toggle button
+  const chatToggle = document.getElementById("chat-toggle");
+  const chatBox = document.getElementById("chat-box");
+  
+  if (chatToggle && chatBox) {
+    chatToggle.addEventListener("click", function() {
+      chatBox.classList.toggle("open");
+    });
+  }
+
   let chatSocket = null, isSocketOpen = false, receiverId = null, unreadCount = 0;
+  
   window.startChat = function(id, username) {
     if (receiverId === id) return;
     receiverId = id;
-    document.getElementById('chat-with').textContent = username;
+    
+    // Update UI
+    document.getElementById('chat-with').textContent = 'Chat mit ' + username;
+    document.getElementById('chat-username').textContent = username;
     document.getElementById('chat-messages').innerHTML = '';
-    openChatBox(); connectWebSocket(); resetUnreadCount();
+    
+    // Show chat area, hide user list
+    document.getElementById('user-list').style.display = 'none';
+    document.getElementById('chat-area').style.display = 'flex';
+    
+    connectWebSocket();
+    resetUnreadCount();
   };
-  function openChatBox(){ document.getElementById('chat-box').style.display = 'flex'; }
-  function closeChatBox(){ document.getElementById('chat-box').style.display = 'none'; }
+  
+  window.backToUserList = function() {
+    // Close WebSocket
+    if (chatSocket) {
+      chatSocket.close();
+      chatSocket = null;
+    }
+    receiverId = null;
+    
+    // Show user list, hide chat area
+    document.getElementById('user-list').style.display = 'block';
+    document.getElementById('chat-area').style.display = 'none';
+    document.getElementById('chat-with').textContent = 'Chat auswählen';
+  };
+  
+  function openChatBox() {
+    const chatBox = document.getElementById('chat-box');
+    if (chatBox) chatBox.classList.add('open');
+  }
+  
+  function closeChatBox() {
+    const chatBox = document.getElementById('chat-box');
+    if (chatBox) chatBox.classList.remove('open');
+  }
+  
   function connectWebSocket() {
     if (chatSocket) chatSocket.close();
     if (!receiverId) return;
@@ -251,9 +571,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const senderUsername = data.sender_username || 'Unknown';
       const senderIdMsg = data.sender_id;
       const messagesDiv = document.getElementById('chat-messages');
-      messagesDiv.innerHTML += `<div><strong>${senderUsername}:</strong> ${message}</div>`;
+      messagesDiv.innerHTML += `
+        <div class="message-item">
+          <div class="message-sender">${senderUsername}</div>
+          <div class="message-content">${message}</div>
+        </div>
+      `;
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      if (senderIdMsg !== receiverId && document.getElementById('chat-box').style.display === 'none') {
+      const chatBox = document.getElementById('chat-box');
+      if (senderIdMsg !== receiverId && chatBox && !chatBox.classList.contains('open')) {
         incrementUnreadCount();
       }
     };
@@ -272,19 +598,42 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateUnreadCount(count){
     unreadCount = count;
     const badge = document.getElementById('unread-count');
-    if (unreadCount > 0){ badge.textContent = unreadCount; badge.style.display = 'inline-block'; }
+    if (!badge) return;
+    if (unreadCount > 0){ badge.textContent = unreadCount; badge.style.display = 'flex'; }
     else { badge.style.display = 'none'; }
   }
   function incrementUnreadCount(){ unreadCount++; updateUnreadCount(unreadCount); }
   function resetUnreadCount(){ unreadCount = 0; updateUnreadCount(unreadCount); }
-  window.openChatBox = openChatBox; window.closeChatBox = closeChatBox;
+  
+  // Make functions globally available
+  window.openChatBox = openChatBox;
+  window.closeChatBox = closeChatBox;
 });
+
+function confirmDelete(patientId, buttonElement) {
+  if (confirm("Sind Sie sicher, dass Sie diesen Patienten löschen möchten?")) {
+    window.location.href = `/delete_patient/${patientId}/`;
+  }
+}
+
 function filterPatients() {
   let input = document.getElementById("searchInput").value.toLowerCase();
   let cards = document.querySelectorAll("#fallsContainer .fall-card");
   cards.forEach(card => {
     let name = card.getAttribute("data-patient-name").toLowerCase();
     card.style.display = name.includes(input) ? "" : "none";
+  });
+}
+
+function filterChatUsers() {
+  const input = document.getElementById("chat-user-search").value.toLowerCase();
+  const userItems = document.querySelectorAll(".user-item");
+  
+  userItems.forEach(item => {
+    const username = item.getAttribute("data-username");
+    const fullname = item.getAttribute("data-fullname");
+    const matches = username.includes(input) || fullname.includes(input);
+    item.style.display = matches ? "flex" : "none";
   });
 }
 </script>
