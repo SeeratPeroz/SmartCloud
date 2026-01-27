@@ -10,7 +10,8 @@ from django.core.exceptions import ValidationError
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.urls import reverse
-import os, uuid
+from django.utils.timesince import timesince
+import os, uuid, time, threading
 from django.core.files.storage import default_storage
 
 
@@ -77,6 +78,30 @@ def _can_edit_patient(user, patient):
 
 def _can_access_patient(user, patient):
     return _can_view_patient(user, patient)
+
+
+def _safe_delete_file(path, attempts=20, delay=0.5):
+    """Delete a file on disk with retries; tries rename first to break Windows locks."""
+    if not path:
+        return
+    base_dir = os.path.dirname(path) or '.'
+    for i in range(max(1, attempts)):
+        try:
+            if os.path.exists(path):
+                # try rename to temp name to release lock
+                tmp_name = os.path.join(base_dir, f".__del_{uuid.uuid4().hex}")
+                try:
+                    os.replace(path, tmp_name)
+                    path = tmp_name
+                except PermissionError:
+                    pass
+                if os.path.exists(path):
+                    os.remove(path)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(delay)
 
 
 # ---------- Main Pages ----------
@@ -256,7 +281,7 @@ def patient_image(request, patient_id):
     models3d = Model3D.objects.filter(ptnID=patient).order_by('-id')
     images = Image.objects.filter(ptnID=patient)
     videos = patient.videos.all().order_by('-uploaded_at')
-    comments = Comment.objects.filter(patient=patient).select_related('author', 'author__profile')
+    comments = Comment.objects.filter(patient=patient).select_related('author', 'author__profile').order_by('created_at')
 
     return render(request, 'patientImage.html', {
         'patient': patient,
@@ -268,12 +293,14 @@ def patient_image(request, patient_id):
     })
 
 
-@require_POST
 @login_required
 def add_comment(request, patient_id):
     patient = get_object_or_404(Patient, id=patient_id)
     if not _can_view_patient(request.user, patient):
         return JsonResponse({'ok': False, 'error': 'Kein Zugriff'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Nur POST erlaubt'}, status=405)
 
     content = (request.POST.get('content') or '').strip()
     if not content:
@@ -287,8 +314,43 @@ def add_comment(request, patient_id):
         'id': c.id,
         'content': c.content,
         'author': request.user.get_full_name() or request.user.username,
+        'author_id': request.user.id,
+        'avatar_url': getattr(getattr(request.user, 'profile', None), 'avatar_url', '') or '',
         'created': c.created_at.strftime('%Y-%m-%d %H:%M'),
+        'created_human': timesince(c.created_at) + ' ago',
     })
+
+
+@login_required
+def comments_feed(request, patient_id):
+    patient = get_object_or_404(Patient, id=patient_id)
+    if not _can_view_patient(request.user, patient):
+        return JsonResponse({'ok': False, 'error': 'Kein Zugriff'}, status=403)
+
+    try:
+        after_id = int(request.GET.get('after_id', '0'))
+    except ValueError:
+        after_id = 0
+
+    qs = Comment.objects.filter(patient=patient).select_related('author', 'author__profile')
+    if after_id:
+        qs = qs.filter(id__gt=after_id)
+    qs = qs.order_by('created_at')
+
+    comments = []
+    for c in qs:
+        author = c.author
+        comments.append({
+            'id': c.id,
+            'content': c.content,
+            'author': author.get_full_name() or author.username,
+            'author_id': author.id,
+            'avatar_url': getattr(getattr(author, 'profile', None), 'avatar_url', '') or '',
+            'created': c.created_at.strftime('%Y-%m-%d %H:%M'),
+            'created_human': timesince(c.created_at) + ' ago',
+        })
+
+    return JsonResponse({'ok': True, 'comments': comments})
 
 
 # ---------- Images ----------
@@ -442,6 +504,16 @@ def delete_videos(request, patient_id):
 
     if request.method == 'POST':
         ids = request.POST.getlist('selected_videos')
+        videos = list(Video.objects.filter(id__in=ids, ptnID=patient))
+        warned=False
+        for v in videos:
+            try:
+                _safe_delete_file(getattr(v.file, 'path', ''))
+            except PermissionError:
+                if not warned:
+                    messages.warning(request, "Einige Videos werden im Hintergrund gelöscht, da sie noch verwendet werden.")
+                    warned=True
+                threading.Thread(target=_safe_delete_file, args=(getattr(v.file, 'path', ''), 30, 0.6), daemon=True).start()
         Video.objects.filter(id__in=ids, ptnID=patient).delete()
     return redirect('patientImage', patient_id=patient.id)
 
@@ -453,6 +525,13 @@ def delete_single_video(request, video_id):
     if not _can_edit_patient(request.user, patient):
         return HttpResponseForbidden("Kein Zugriff")
 
+    path = getattr(video.file, 'path', '')
+    try:
+        _safe_delete_file(path)
+    except PermissionError:
+        # try background cleanup, but still remove DB row to unblock UI
+        threading.Thread(target=_safe_delete_file, args=(path, 30, 0.6), daemon=True).start()
+        messages.warning(request, "Datei wird verwendet. Löschung wird erneut im Hintergrund versucht.")
     video.delete()
     return redirect('patientImage', patient_id=patient.id)
 

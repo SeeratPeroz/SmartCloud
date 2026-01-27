@@ -21,6 +21,7 @@ urlpatterns = [
     path('patient/<int:patient_id>/', views.patient_image, name='patientImage'),
     path('patient/<int:patient_id>/settings/', views.patient_manage, name='patient_manage'),
     path('patient/<int:patient_id>/comment/', views.add_comment, name='add_comment'),
+    path('patient/<int:patient_id>/comments/feed/', views.comments_feed, name='comments_feed'),
 
 
 

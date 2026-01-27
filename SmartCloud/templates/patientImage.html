@@ -80,7 +80,7 @@
       <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
       <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
     </div>
-    <button id="btnComments" class="btn btn-outline-primary btn-sm">
+    <button id="btnComments" class="btn btn-outline-primary btn-sm" title="Fallbezogene Kommentare und Verlauf">
       <i class="far fa-comments"></i> Kommentare
       {% if comments %}<span id="commentsCount" class="badge bg-primary text-white">{{ comments|length }}</span>{% else %}<span id="commentsCount" class="badge bg-primary text-white d-none">0</span>{% endif %}
     </button>
@@ -99,6 +99,10 @@
         <div class="text-muted small">oder klicken, um auszuwählen</div>
         <input id="filePicker" type="file" accept="image/*,video/*,.stl,model/stl,application/sla" multiple hidden>
       </div>
+      <div id="uploadProgress" class="progress mt-3 d-none" aria-hidden="true">
+        <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%">0%</div>
+      </div>
+      <div id="uploadStatus" class="small text-muted mt-1 d-none"></div>
       <div class="form-text mt-2">Unterstützt: JPG, PNG, WEBP, GIF, HEIC/HEIF*, MP4, MOV, WEBM, STL.</div>
     </div>
   </div>
@@ -237,7 +241,8 @@
     </div>
     <button id="closeComments" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></button>
   </div>
-  <div id="commentsList" class="drawer-body">
+  <div class="px-3 pb-1 text-muted small">Fallbezogene Kommentare für Verlauf, Rückfragen und Teamabstimmung.</div>
+  <div id="commentsList" class="drawer-body" data-last-id="{% if comments %}{{ comments.last.id }}{% else %}0{% endif %}">
     {% for c in comments %}
       <div class="msg {% if c.author_id == request.user.id %}mine{% endif %}">
         <img class="avatar" src="{{ c.author.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1' }}" alt="avatar">
@@ -311,6 +316,11 @@
 /* ---------- Helpers ---------- */
 function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m? m.pop():''; }
 const CSRF_TOKEN=getCookie('csrftoken');
+const CURRENT_USER_ID={{ request.user.id }};
+function escapeHtml(str){
+  const map={"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"};
+  return (str||'').replace(/[&<>"']/g, ch => map[ch]);
+}
 
 /* ---------- Comments drawer ---------- */
 const btnComments=document.getElementById('btnComments');
@@ -319,6 +329,83 @@ const backdrop=document.getElementById('commentsBackdrop');
 document.getElementById('closeComments').addEventListener('click',()=>{drawer.classList.remove('open');backdrop.classList.remove('show')});
 btnComments.addEventListener('click',()=>{drawer.classList.add('open');backdrop.classList.add('show')});
 backdrop.addEventListener('click',()=>{drawer.classList.remove('open');backdrop.classList.remove('show')});
+
+// Comment submit + live append
+const commentsList=document.getElementById('commentsList');
+const drawerCount=document.getElementById('drawerCount');
+const commentsCount=document.getElementById('commentsCount');
+const COMMENT_URL="{% url 'add_comment' patient.id %}";
+const FEED_URL="{% url 'comments_feed' patient.id %}";
+const MY_AVATAR="{{ request.user.profile.avatar_url|default:'https://i.pravatar.cc/100?img=1'|escapejs }}";
+const MY_NAME="{{ request.user.get_full_name|default:request.user.username|escapejs }}";
+let lastCommentId=Number(commentsList?.dataset.lastId||0);
+
+const appendComment = (c, mine=false) => {
+  if(!commentsList) return;
+  const empty = commentsList.querySelector('.text-muted');
+  if(empty) empty.remove();
+  const node=document.createElement('div');
+  const isMine = mine || c.author_id===CURRENT_USER_ID;
+  node.className='msg'+(isMine?' mine':'');
+  node.innerHTML=`
+    <img class="avatar" src="${(c.avatar_url||MY_AVATAR||'https://i.pravatar.cc/100?img=1')}" alt="avatar">
+    <div>
+      <div class="bubble">${escapeHtml(c.content||'').replace(/\n/g,'<br>')}</div>
+      <div class="meta">${escapeHtml(c.author||MY_NAME||'')} · ${c.created_human||'gerade eben'}</div>
+    </div>`;
+  commentsList.appendChild(node);
+  lastCommentId = Math.max(lastCommentId, Number(c.id||0));
+  commentsList.dataset.lastId = String(lastCommentId);
+  const currentCount = Number(drawerCount?.textContent||0)+1;
+  if(drawerCount) drawerCount.textContent=currentCount;
+  if(commentsCount){commentsCount.textContent=currentCount;commentsCount.classList.remove('d-none');}
+};
+
+const commentForm=document.getElementById('commentForm');
+if(commentForm){
+  const commentText=document.getElementById('commentText');
+  const submitBtn=commentForm.querySelector('button[type="submit"]');
+
+  commentForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const text=(commentText.value||'').trim();
+    if(!text) return;
+    submitBtn.disabled=true;
+    try{
+      const fd=new FormData();
+      fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
+      fd.append('content', text);
+      const res=await fetch(COMMENT_URL,{method:'POST',headers:{'X-CSRFToken':CSRF_TOKEN},body:fd});
+      const data=await res.json().catch(()=>({ok:false,error:'Serverfehler'}));
+      if(!res.ok || !data.ok){ alert(data.error||'Kommentar konnte nicht gespeichert werden.'); return; }
+      appendComment(data, true);
+      commentText.value='';
+      commentText.focus();
+    }catch(_){
+      alert('Netzwerkfehler beim Senden.');
+    }finally{
+      submitBtn.disabled=false;
+    }
+  });
+
+  commentText.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); commentForm.requestSubmit(); }
+  });
+}
+
+const fetchNewComments = async () => {
+  if(!commentsList) return;
+  try{
+    const res = await fetch(`${FEED_URL}?after_id=${lastCommentId}`);
+    const data = await res.json().catch(()=>({ok:false}));
+    if(!res.ok || !data.ok) return;
+    if(Array.isArray(data.comments)){
+      data.comments.forEach(c => appendComment(c, c.author_id===CURRENT_USER_ID));
+    }
+  }catch(_){ /* ignore network hiccups */ }
+};
+
+setInterval(fetchNewComments, 8000);
 
 /* ---------- Upload (minimal) ---------- */
 const dropzone=document.getElementById('dropzone'), picker=document.getElementById('filePicker');
@@ -330,14 +417,60 @@ picker.addEventListener('change',e=>handleFiles(e.target.files));
 function handleFiles(list){
   const files=[...list]; if(!files.length) return;
   const U_IMG="{% url 'upload_images' patient.id %}", U_VID="{% url 'upload_videos' patient.id %}", U_STL="{% url 'upload_models' patient.id %}";
-  (async()=>{for(const f of files){
-    const n=(f.name||'').toLowerCase();
-    const isImg=f.type.startsWith('image/'); const isVid=f.type.startsWith('video/'); const isStl=n.endsWith('.stl')||f.type==='model/stl'||f.type==='application/sla';
-    let url=null, field=null;
-    if(isImg){url=U_IMG; field='images'} else if(isVid){url=U_VID; field='videos'} else if(isStl){url=U_STL; field='models'} else {continue;}
-    const fd=new FormData(); fd.append('csrfmiddlewaretoken',CSRF_TOKEN); fd.append(field,f);
-    await fetch(url,{method:'POST',headers:{'X-CSRFToken':CSRF_TOKEN},body:fd});
-  } location.reload(); })();
+  const bar=document.getElementById('uploadProgressBar');
+  const wrap=document.getElementById('uploadProgress');
+  const status=document.getElementById('uploadStatus');
+  const totalBytes = Math.max(1, files.reduce((s,f)=>s+(f.size||0),0));
+  let sentBytes = 0;
+
+  const showProgress = (pct, txt) => {
+    if(!bar||!wrap||!status) return;
+    wrap.classList.remove('d-none'); wrap.setAttribute('aria-hidden','false');
+    status.classList.remove('d-none');
+    const clamped=Math.min(100,Math.max(0,Math.round(pct)));
+    bar.style.width=clamped+'%';
+    bar.textContent=clamped+'%';
+    status.textContent=txt;
+  };
+
+  const uploadFile = (file, url, field) => new Promise((resolve,reject)=>{
+    const fd=new FormData(); fd.append('csrfmiddlewaretoken',CSRF_TOKEN); fd.append(field,file);
+    const xhr=new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('X-CSRFToken', CSRF_TOKEN);
+    xhr.upload.onprogress = (e)=>{
+      if(e.lengthComputable){
+        const pct = (sentBytes + e.loaded) / totalBytes * 100;
+        showProgress(pct, `Lade hoch: ${file.name}`);
+      }
+    };
+    xhr.onload = () => {
+      if(xhr.status>=200 && xhr.status<300){
+        sentBytes += file.size||0;
+        const pct = sentBytes / totalBytes * 100;
+        showProgress(pct, `Fertig: ${file.name}`);
+        resolve();
+      } else {
+        showProgress(0, `Fehler bei ${file.name}`);
+        reject(new Error('upload failed'));
+      }
+    };
+    xhr.onerror = () => { showProgress(0, `Fehler bei ${file.name}`); reject(new Error('upload error')); };
+    xhr.send(fd);
+  });
+
+  (async()=>{
+    showProgress(0,'Starte Upload...');
+    for(const f of files){
+      const n=(f.name||'').toLowerCase();
+      const isImg=f.type.startsWith('image/'); const isVid=f.type.startsWith('video/'); const isStl=n.endsWith('.stl')||f.type==='model/stl'||f.type==='application/sla';
+      let url=null, field=null;
+      if(isImg){url=U_IMG; field='images'} else if(isVid){url=U_VID; field='videos'} else if(isStl){url=U_STL; field='models'} else {continue;}
+      try{ await uploadFile(f, url, field); }catch(_){ /* keep going to next file */ }
+    }
+    showProgress(100,'Abgeschlossen, aktualisiere...');
+    setTimeout(()=>location.reload(), 400);
+  })();
 }
 
 /* ---------- Fullscreen image viewer ---------- */
