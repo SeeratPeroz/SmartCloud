@@ -106,6 +106,7 @@ class Profile(models.Model):
         default=Role.VIEWER,
         db_index=True,
     )
+    description = models.TextField(blank=True, default="")
     branches = models.ManyToManyField(Branch, blank=True, related_name="users")
 
     def __str__(self):
