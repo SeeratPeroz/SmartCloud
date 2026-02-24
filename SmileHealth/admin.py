@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 
 from .models import (
-    Patient, Image, Message, Profile, Comment, Model3D, Video, Branch
+    Patient, Image, Message, Profile, Comment, Model3D, Video, Branch, ActivityLog
 )
 
 # --- User + Profile inline (role/branches) ---
@@ -74,3 +74,4 @@ admin.site.register(Message)
 admin.site.register(Comment)
 admin.site.register(Model3D)
 admin.site.register(Video)
+admin.site.register(ActivityLog)

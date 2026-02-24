@@ -16,7 +16,7 @@ from django.core.files.storage import default_storage
 
 
 from .models import (
-    Patient, Image, Message, Profile, Video, Comment, Model3D
+    Patient, Image, Message, Profile, Video, Comment, Model3D, ActivityLog
 )
 
 # ---------- Auth & Progress ----------
@@ -58,6 +58,24 @@ def logout_view(request):
 
 def _is_admin(user):
     return user.is_superuser or user.is_staff
+
+def _is_admin_role(user):
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    try:
+        return user.profile.role == Profile.Role.ADMIN
+    except Exception:
+        return False
+
+
+def _default_avatar_for_gender(gender):
+    if gender == Profile.Gender.FEMALE:
+        return "https://randomuser.me/api/portraits/women/1.jpg"
+    if gender == Profile.Gender.MALE:
+        return "https://randomuser.me/api/portraits/men/1.jpg"
+    return "https://i.pravatar.cc/150?img=1"
 
 def _can_view_patient(user, patient):
     if not user.is_authenticated:
@@ -111,6 +129,12 @@ def index(request):
     users = User.objects.exclude(id=request.user.id)
     avatar = Profile.objects.filter(user=request.user).first()
 
+    unread_count = Message.objects.filter(receiver=request.user, is_read=False).count()
+    last_notified = request.session.get("unread_notice_count", 0)
+    if unread_count > 0 and unread_count != last_notified:
+        messages.info(request, f"Sie haben {unread_count} ungelesene Nachricht(en).")
+        request.session["unread_notice_count"] = unread_count
+
     scope = request.GET.get('scope', 'all')
 
     base_qs = Patient.objects.visible_to(request.user) \
@@ -147,6 +171,118 @@ def index(request):
         'avatar': avatar,
         'scope': scope,
         'counts': counts,
+        'unread_count': unread_count,
+    })
+
+
+@login_required
+def admin_dashboard(request):
+    if not _is_admin_role(request.user):
+        return HttpResponseForbidden("Kein Zugriff")
+
+    tab = (request.GET.get("tab") or "activities").strip()
+    role_filter = (request.GET.get("role") or "").strip()
+    user_id = (request.GET.get("user_id") or "").strip()
+    activity_q = (request.GET.get("q") or "").strip()
+
+    users_qs = User.objects.select_related("profile").order_by("username")
+    if role_filter:
+        users_qs = users_qs.filter(profile__role=role_filter)
+
+    selected_user = None
+    selected_user_activities = []
+    if user_id.isdigit():
+        selected_user = User.objects.select_related("profile").filter(id=int(user_id)).first()
+        if selected_user:
+            selected_user_activities = ActivityLog.objects.select_related("actor") \
+                .filter(actor=selected_user) \
+                .order_by("-created_at")[:10]
+
+    activities_qs = ActivityLog.objects.select_related("actor").order_by("-created_at")
+    if activity_q:
+        activities_qs = activities_qs.filter(
+            Q(actor__username__icontains=activity_q)
+            | Q(action__icontains=activity_q)
+            | Q(target_type__icontains=activity_q)
+            | Q(target_label__icontains=activity_q)
+            | Q(details__icontains=activity_q)
+        )
+    activities = activities_qs[:20]
+
+    if request.method == "POST":
+        form_type = request.POST.get("form")
+        if form_type == "create_user":
+            username = (request.POST.get("username") or "").strip()
+            email = (request.POST.get("email") or "").strip()
+            password = (request.POST.get("password") or "").strip()
+            role = request.POST.get("role") or Profile.Role.VIEWER
+            gender = request.POST.get("gender") or Profile.Gender.UNSPECIFIED
+
+            valid_roles = {r for r, _ in Profile.Role.choices}
+            valid_genders = {g for g, _ in Profile.Gender.choices}
+
+            if not username or not password:
+                messages.error(request, "Username and password are required.")
+            elif User.objects.filter(username=username).exists():
+                messages.error(request, "Username already exists.")
+            else:
+                user = User.objects.create_user(username=username, email=email, password=password)
+                profile = user.profile
+                profile.role = role if role in valid_roles else Profile.Role.VIEWER
+                profile.gender = gender if gender in valid_genders else Profile.Gender.UNSPECIFIED
+                profile.avatar_url = _default_avatar_for_gender(profile.gender)
+                profile.save()
+
+                ActivityLog.objects.create(
+                    actor=request.user,
+                    action=ActivityLog.Action.USER_CREATED,
+                    target_type="User",
+                    target_id=user.id,
+                    target_label=user.username,
+                )
+                messages.success(request, "User created successfully.")
+
+                redirect_url = f"{reverse('admin_dashboard')}?tab=users"
+                return redirect(redirect_url)
+
+        if form_type == "toggle_user":
+            target_id = request.POST.get("user_id") or ""
+            desired_state = request.POST.get("active")
+            if target_id.isdigit():
+                target = User.objects.filter(id=int(target_id)).first()
+            else:
+                target = None
+
+            if not target:
+                messages.error(request, "Benutzer nicht gefunden.")
+            elif target.id == request.user.id:
+                messages.error(request, "Sie können Ihr eigenes Konto nicht deaktivieren.")
+            else:
+                should_activate = desired_state == "1"
+                target.is_active = should_activate
+                target.save(update_fields=["is_active"])
+                if should_activate:
+                    messages.success(request, "Benutzer wurde aktiviert.")
+                else:
+                    messages.success(request, "Benutzer wurde deaktiviert.")
+
+            redirect_url = f"{reverse('admin_dashboard')}?tab=users"
+            if role_filter:
+                redirect_url += f"&role={role_filter}"
+            if user_id:
+                redirect_url += f"&user_id={user_id}"
+            return redirect(redirect_url)
+
+    return render(request, "admin_dashboard.html", {
+        "tab": tab,
+        "users": users_qs,
+        "roles": Profile.Role.choices,
+        "genders": Profile.Gender.choices,
+        "role_filter": role_filter,
+        "selected_user": selected_user,
+        "selected_user_activities": selected_user_activities,
+        "activities": activities,
+        "activity_q": activity_q,
     })
 
 
@@ -211,6 +347,13 @@ def patient_manage(request, patient_id):
             patient.shared_with.set(share_set)
             patient.visibility = Patient.Visibility.SHARED
             patient.save(update_fields=['visibility'])
+            ActivityLog.objects.create(
+                actor=request.user,
+                action=ActivityLog.Action.PATIENT_SHARED,
+                target_type="Patient",
+                target_id=patient.id,
+                target_label=str(patient),
+            )
             messages.success(request, "Patient wurde geteilt.")
             return redirect('patient_manage', patient_id=patient.id)
 

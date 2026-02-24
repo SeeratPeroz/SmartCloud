@@ -23,6 +23,20 @@
   <!-- Divider -->
   <hr class="sidebar-divider" />
 
+  {% if request.user.is_authenticated %}
+    {% if request.user.is_superuser or request.user.profile.role == 'ADMIN' %}
+      <!-- Nav Item - Admin Dashboard -->
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'admin_dashboard' %}">
+          <i class="fas fa-user-shield"></i>
+          <span>Admin Control</span>
+        </a>
+      </li>
+
+      <hr class="sidebar-divider" />
+    {% endif %}
+  {% endif %}
+
   <!-- Feedback (opens modal) -->
   <li class="nav-item">
     <a class="nav-link" href="#" data-bs-toggle="modal" data-bs-target="#feedbackModal">

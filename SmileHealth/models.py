@@ -82,6 +82,7 @@ class Message(models.Model):
     receiver = models.ForeignKey(User, related_name='received_messages', on_delete=models.CASCADE)
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         ordering = ['timestamp']
@@ -97,6 +98,11 @@ class Profile(models.Model):
         DOCTOR = "DOCTOR", "Doctor"
         ASSISTANT = "ASSISTANT", "Assistant"
         VIEWER = "VIEWER", "Viewer"
+
+    class Gender(models.TextChoices):
+        MALE = "MALE", "Male"
+        FEMALE = "FEMALE", "Female"
+        UNSPECIFIED = "UNSPECIFIED", "Unspecified"
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     avatar_url = models.URLField(default="https://i.pravatar.cc/150?img=1")  # default avatar
 
@@ -104,6 +110,12 @@ class Profile(models.Model):
         max_length=20,
         choices=Role.choices,
         default=Role.VIEWER,
+        db_index=True,
+    )
+    gender = models.CharField(
+        max_length=20,
+        choices=Gender.choices,
+        default=Gender.UNSPECIFIED,
         db_index=True,
     )
     description = models.TextField(blank=True, default="")
@@ -148,3 +160,35 @@ class Model3D(models.Model):
 
     def __str__(self):
         return f"3D Model {self.id} for {self.ptnID}"
+
+
+class ActivityLog(models.Model):
+    class Action(models.TextChoices):
+        LOGIN = "LOGIN", "Login"
+        USER_CREATED = "USER_CREATED", "User created"
+        PATIENT_CREATED = "PATIENT_CREATED", "Patient created"
+        PATIENT_DELETED = "PATIENT_DELETED", "Patient deleted"
+        PATIENT_SHARED = "PATIENT_SHARED", "Patient shared"
+        IMAGE_UPLOADED = "IMAGE_UPLOADED", "Image uploaded"
+        IMAGE_DELETED = "IMAGE_DELETED", "Image deleted"
+        VIDEO_UPLOADED = "VIDEO_UPLOADED", "Video uploaded"
+        VIDEO_DELETED = "VIDEO_DELETED", "Video deleted"
+        MODEL3D_UPLOADED = "MODEL3D_UPLOADED", "3D model uploaded"
+        MODEL3D_DELETED = "MODEL3D_DELETED", "3D model deleted"
+        COMMENT_ADDED = "COMMENT_ADDED", "Comment added"
+        MESSAGE_SENT = "MESSAGE_SENT", "Message sent"
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
+    action = models.CharField(max_length=40, choices=Action.choices, db_index=True)
+    target_type = models.CharField(max_length=40, blank=True, default="")
+    target_id = models.PositiveIntegerField(null=True, blank=True)
+    target_label = models.CharField(max_length=200, blank=True, default="")
+    details = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        actor = self.actor.username if self.actor else "system"
+        return f"{actor}: {self.action}"

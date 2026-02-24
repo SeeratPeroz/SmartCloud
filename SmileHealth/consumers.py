@@ -47,7 +47,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return  # ignore empty messages
 
         # Save message in DB
-        await self.save_message(self.user.id, self.receiver_id, message)
+        msg = await self.save_message(self.user.id, self.receiver_id, message)
 
         # Broadcast message to room group
         await self.channel_layer.group_send(
@@ -57,14 +57,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': message,
                 'sender_id': self.user.id,
                 'sender_username': self.user.username,
+                'message_id': msg.id,
             }
         )
 
     async def chat_message(self, event):
+        if self.user.id != event['sender_id']:
+            await self.mark_message_read(event.get('message_id'))
         await self.send(text_data=json.dumps({
             'message': event['message'],
             'sender_id': event['sender_id'],
             'sender_username': event['sender_username'],
+            'message_id': event.get('message_id'),
         }))
 
     @database_sync_to_async
@@ -74,6 +78,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender_id__in=[user1_id, user2_id],
             receiver_id__in=[user1_id, user2_id]
         ).select_related('sender').order_by('timestamp')
+
+        Message.objects.filter(
+            sender_id=user2_id,
+            receiver_id=user1_id,
+            is_read=False
+        ).update(is_read=True)
 
         return [
             {
@@ -92,3 +102,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         sender = User.objects.get(id=sender_id)
         receiver = User.objects.get(id=receiver_id)
         return Message.objects.create(sender=sender, receiver=receiver, content=content)
+
+    @database_sync_to_async
+    def mark_message_read(self, message_id):
+        if not message_id:
+            return 0
+        from .models import Message
+        return Message.objects.filter(id=message_id).update(is_read=True)

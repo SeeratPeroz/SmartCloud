@@ -11,6 +11,9 @@ urlpatterns = [
     # NEW: progress page after login
     path('progress/', views.progress, name='progress'),
 
+    # Admin dashboard
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
+
 
 
     path('load_new_fall/', views.load_new_fall, name='load_new_fall'),
@@ -49,6 +52,9 @@ urlpatterns = [
 
     # Feedback routes
     path('feedback/send/', views.send_feedback, name='send_feedback'),
+
+    # Chat notifications
+    path('messages/unread-count/', views.get_unread_message_count, name='unread_message_count'),
 
 
 ]

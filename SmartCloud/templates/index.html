@@ -515,6 +515,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let chatSocket = null, isSocketOpen = false, receiverId = null, unreadCount = 0;
+
+  function refreshUnreadCount(){
+    fetch('{% url "unread_message_count" %}', { credentials: 'same-origin' })
+      .then(r => r.json())
+      .then(data => {
+        const count = Number(data.unread_count || 0);
+        updateUnreadCount(count);
+      })
+      .catch(() => {});
+  }
   
   window.startChat = function(id, username) {
     if (receiverId === id) return;
@@ -531,6 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     connectWebSocket();
     resetUnreadCount();
+    setTimeout(refreshUnreadCount, 600);
   };
   
   window.backToUserList = function() {
@@ -604,6 +615,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function incrementUnreadCount(){ unreadCount++; updateUnreadCount(unreadCount); }
   function resetUnreadCount(){ unreadCount = 0; updateUnreadCount(unreadCount); }
+
+  refreshUnreadCount();
   
   // Make functions globally available
   window.openChatBox = openChatBox;

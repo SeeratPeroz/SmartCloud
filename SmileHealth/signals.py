@@ -3,8 +3,9 @@
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User, Group
+from django.contrib.auth.signals import user_logged_in
 
-from .models import Profile, Patient, Image
+from .models import Profile, Patient, Image, Comment, Model3D, Message, ActivityLog
 # Import Video if you added it (safe if missing)
 try:
     from .models import Video
@@ -45,6 +46,28 @@ def _sync_user_staff_flag(user: User, role: str):
         User.objects.filter(pk=user.pk).update(is_staff=should_be_staff)
 
 
+def _log_activity(action, actor=None, target=None, details=""):
+    target_type = ""
+    target_id = None
+    target_label = ""
+    if target is not None:
+        target_type = target.__class__.__name__
+        target_id = getattr(target, "pk", None)
+        try:
+            target_label = str(target)
+        except Exception:
+            target_label = ""
+
+    ActivityLog.objects.create(
+        actor=actor,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        target_label=target_label,
+        details=details,
+    )
+
+
 # ── Profile auto-create / auto-save + role/group sync ─────────────────────────
 @receiver(post_save, sender=User)
 def ensure_user_profile(sender, instance, created, **kwargs):
@@ -81,6 +104,11 @@ def sync_user_on_profile_change(sender, instance: Profile, **kwargs):
     _sync_user_groups_to_role(user, role)
 
 
+@receiver(user_logged_in)
+def log_user_login(sender, request, user, **kwargs):
+    _log_activity(ActivityLog.Action.LOGIN, actor=user, target=user)
+
+
 # ── Patient thumbnail housekeeping ─────────────────────────────────────────────
 @receiver(post_delete, sender=Patient)
 def delete_thumb_on_patient_delete(sender, instance, **kwargs):
@@ -89,6 +117,17 @@ def delete_thumb_on_patient_delete(sender, instance, **kwargs):
     """
     if instance.thumbnail:
         instance.thumbnail.delete(save=False)
+
+
+@receiver(post_save, sender=Patient)
+def log_patient_created(sender, instance, created, **kwargs):
+    if created:
+        _log_activity(ActivityLog.Action.PATIENT_CREATED, actor=instance.usrID, target=instance)
+
+
+@receiver(post_delete, sender=Patient)
+def log_patient_deleted(sender, instance, **kwargs):
+    _log_activity(ActivityLog.Action.PATIENT_DELETED, actor=instance.usrID, target=instance)
 
 
 @receiver(pre_save, sender=Patient)
@@ -118,6 +157,40 @@ def delete_image_file_on_row_delete(sender, instance, **kwargs):
         instance.image.delete(save=False)
 
 
+@receiver(post_save, sender=Image)
+def log_image_uploaded(sender, instance, created, **kwargs):
+    if created:
+        _log_activity(ActivityLog.Action.IMAGE_UPLOADED, actor=instance.usrID, target=instance)
+
+
+@receiver(post_delete, sender=Image)
+def log_image_deleted(sender, instance, **kwargs):
+    _log_activity(ActivityLog.Action.IMAGE_DELETED, actor=instance.usrID, target=instance)
+
+
+@receiver(post_save, sender=Comment)
+def log_comment_added(sender, instance, created, **kwargs):
+    if created:
+        _log_activity(ActivityLog.Action.COMMENT_ADDED, actor=instance.author, target=instance)
+
+
+@receiver(post_save, sender=Message)
+def log_message_sent(sender, instance, created, **kwargs):
+    if created:
+        _log_activity(ActivityLog.Action.MESSAGE_SENT, actor=instance.sender, target=instance)
+
+
+@receiver(post_save, sender=Model3D)
+def log_model3d_uploaded(sender, instance, created, **kwargs):
+    if created:
+        _log_activity(ActivityLog.Action.MODEL3D_UPLOADED, actor=instance.usrID, target=instance)
+
+
+@receiver(post_delete, sender=Model3D)
+def log_model3d_deleted(sender, instance, **kwargs):
+    _log_activity(ActivityLog.Action.MODEL3D_DELETED, actor=instance.usrID, target=instance)
+
+
 if Video:
     @receiver(post_delete, sender=Video)
     def delete_video_file_on_row_delete(sender, instance, **kwargs):
@@ -126,3 +199,14 @@ if Video:
         """
         if instance.file:
             instance.file.delete(save=False)
+
+
+    @receiver(post_save, sender=Video)
+    def log_video_uploaded(sender, instance, created, **kwargs):
+        if created:
+            _log_activity(ActivityLog.Action.VIDEO_UPLOADED, actor=instance.usrID, target=instance)
+
+
+    @receiver(post_delete, sender=Video)
+    def log_video_deleted(sender, instance, **kwargs):
+        _log_activity(ActivityLog.Action.VIDEO_DELETED, actor=instance.usrID, target=instance)

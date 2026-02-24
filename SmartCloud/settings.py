@@ -18,6 +18,24 @@ print(os.environ.get('DJANGO_SETTINGS_MODULE'))
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+SERVER_DATA_ROOT = Path('/var/db_media/CleverCloud')
+SERVER_DB_PATH = SERVER_DATA_ROOT / 'db.sqlite3'
+SERVER_MEDIA_PATH = SERVER_DATA_ROOT / 'media'
+
+AUTO_USE_SERVER_PATHS = SERVER_DB_PATH.exists() and SERVER_MEDIA_PATH.exists()
+USE_SERVER_PATHS = env_bool('USE_SERVER_PATHS', AUTO_USE_SERVER_PATHS)
+
+DB_PATH = SERVER_DB_PATH if USE_SERVER_PATHS else BASE_DIR / 'db.sqlite3'
+MEDIA_STORAGE_PATH = SERVER_MEDIA_PATH if USE_SERVER_PATHS else BASE_DIR / 'media'
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -122,7 +140,7 @@ WSGI_APPLICATION = 'SmartCloud.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DB_PATH,
     }
 }
 
@@ -162,7 +180,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = str(MEDIA_STORAGE_PATH)
+
+# Custom storage backend: tries server path first, falls back to local
+DEFAULT_FILE_STORAGE = 'SmileHealth.storage.PrimarySecondaryStorage'
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'SmartCloud/static')]

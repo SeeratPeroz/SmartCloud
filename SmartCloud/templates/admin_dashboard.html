@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin-Steuerung - CleverCloud{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4 text-gray-800">Admin-Steuerung</h1>
+
+{% with active_tab=tab|default:"activities" %}
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'activities' %}active{% endif %}" href="{% url 'admin_dashboard' %}?tab=activities">
+      Aktivitäten
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if active_tab == 'users' %}active{% endif %}" href="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}">
+      Benutzerfilter
+    </a>
+  </li>
+</ul>
+
+{% if active_tab == 'activities' %}
+  <style>
+    .activity-wrap {
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border: 1px solid #e5e7eb;
+    }
+    .activity-item {
+      border: 1px solid #eef2f7;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: #ffffff;
+      box-shadow: 0 1px 0 rgba(17, 24, 39, 0.03);
+    }
+    .activity-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .activity-meta {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .activity-action {
+      font-weight: 600;
+      color: #111827;
+    }
+    .activity-pill {
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+  </style>
+  <div class="card shadow-sm">
+    <div class="card-header bg-light">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+        <h6 class="m-0">Letzte 20 Aktivitäten</h6>
+        <form method="get" class="d-flex gap-2">
+          <input type="hidden" name="tab" value="activities">
+          <input type="text" class="form-control" name="q" placeholder="Aktivitäten suchen..." value="{{ activity_q }}">
+          <button type="submit" class="btn btn-primary">Suchen</button>
+          <a class="btn btn-outline-secondary" href="{% url 'admin_dashboard' %}?tab=activities">Zurücksetzen</a>
+        </form>
+      </div>
+    </div>
+    <div class="card-body activity-wrap">
+      {% if activities %}
+        {% for act in activities %}
+          <div class="activity-item d-flex gap-3 align-items-start">
+            <div class="activity-avatar">
+              {{ act.actor.username|default:"S"|slice:":1"|upper }}
+            </div>
+            <div class="flex-grow-1">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="activity-action">{{ act.actor.username|default:"system" }}</div>
+                <span class="activity-pill">{{ act.get_action_display }}</span>
+                <div class="activity-meta">{{ act.created_at|date:"Y-m-d H:i" }}</div>
+              </div>
+              <div class="activity-meta">
+                {{ act.target_type }}{% if act.target_label %}: {{ act.target_label }}{% endif %}
+              </div>
+              {% if act.details %}
+                <div class="activity-meta">{{ act.details }}</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-muted">Keine Aktivitäten gefunden.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% if active_tab == 'users' %}
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <div class="d-flex align-items-center justify-content-between">
+            <h6 class="m-0">Benutzerfilter</h6>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createUserModal">
+              Benutzer erstellen
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="get" class="row g-2 align-items-end mb-3">
+            <input type="hidden" name="tab" value="users">
+            <div class="col-md-6">
+              <label for="role" class="form-label">Nach Rolle filtern</label>
+              <select id="role" name="role" class="form-select">
+                <option value="">Alle Rollen</option>
+                {% for value, label in roles %}
+                  <option value="{{ value }}" {% if role_filter == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="userSearch" class="form-label">Benutzer suchen</label>
+              <input id="userSearch" type="text" class="form-control" placeholder="Nach Benutzername oder E-Mail suchen">
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-primary w-100">Anwenden</button>
+            </div>
+            <div class="col-md-3">
+              <a class="btn btn-outline-secondary w-100" href="{% url 'admin_dashboard' %}?tab=users">Zurücksetzen</a>
+            </div>
+          </form>
+
+          <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>Benutzername</th>
+                  <th>E-Mail</th>
+                  <th>Rolle</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in users %}
+                  <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.profile.role|default:"-" }}</td>
+                    <td>
+                      {% if u.is_active %}
+                        <span class="badge bg-success">Aktiv</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Inaktiv</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">
+                      <form method="post" class="d-inline" action="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}{% if selected_user %}&user_id={{ selected_user.id }}{% endif %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="form" value="toggle_user">
+                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                        {% if u.is_active %}
+                          <input type="hidden" name="active" value="0">
+                          <button type="submit" class="btn btn-sm btn-outline-danger" {% if u.id == request.user.id %}disabled{% endif %}>
+                            Deaktivieren
+                          </button>
+                        {% else %}
+                          <input type="hidden" name="active" value="1">
+                          <button type="submit" class="btn btn-sm btn-outline-success">
+                            Aktivieren
+                          </button>
+                        {% endif %}
+                      </form>
+                      <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}&user_id={{ u.id }}">
+                        Anzeigen
+                      </a>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-muted">Keine Benutzer gefunden.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-light">
+          <h6 class="m-0">Benutzerprofil</h6>
+        </div>
+        <div class="card-body">
+          {% if selected_user %}
+            <div class="text-center mb-3">
+              <img src="{{ selected_user.profile.avatar_url }}" class="rounded-circle" width="80" height="80" alt="Avatar">
+            </div>
+            <div class="mb-2"><strong>Benutzername:</strong> {{ selected_user.username }}</div>
+            <div class="mb-2"><strong>E-Mail:</strong> {{ selected_user.email|default:"-" }}</div>
+            <div class="mb-2"><strong>Rolle:</strong> {{ selected_user.profile.role|default:"-" }}</div>
+            <div class="mb-2"><strong>Geschlecht:</strong> {{ selected_user.profile.gender|default:"-" }}</div>
+            <div class="mb-2"><strong>Status:</strong>
+              {% if selected_user.is_active %}
+                <span class="badge bg-success">Aktiv</span>
+              {% else %}
+                <span class="badge bg-secondary">Inaktiv</span>
+              {% endif %}
+            </div>
+            <div class="d-grid gap-2 mb-3">
+              <form method="post" action="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}&user_id={{ selected_user.id }}">
+                {% csrf_token %}
+                <input type="hidden" name="form" value="toggle_user">
+                <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+                {% if selected_user.is_active %}
+                  <input type="hidden" name="active" value="0">
+                  <button type="submit" class="btn btn-outline-danger" {% if selected_user.id == request.user.id %}disabled{% endif %}>
+                    Benutzer deaktivieren
+                  </button>
+                {% else %}
+                  <input type="hidden" name="active" value="1">
+                  <button type="submit" class="btn btn-outline-success">
+                    Benutzer aktivieren
+                  </button>
+                {% endif %}
+              </form>
+            </div>
+            <hr>
+            <div class="fw-semibold mb-2">Letzte 10 Aktivitäten</div>
+            {% if selected_user_activities %}
+              <ul class="list-group list-group-flush">
+                {% for act in selected_user_activities %}
+                  <li class="list-group-item">
+                    <div class="fw-semibold">{{ act.get_action_display }}</div>
+                    <div class="small text-muted">
+                      {{ act.target_type }}{% if act.target_label %}: {{ act.target_label }}{% endif %}
+                      - {{ act.created_at|date:"Y-m-d H:i" }}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <div class="text-muted">Keine aktuellen Aktivitäten.</div>
+            {% endif %}
+          {% else %}
+            <div class="text-muted">Wählen Sie einen Benutzer, um Profil und Aktivitäten anzuzeigen.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% endwith %}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('userSearch');
+    if (!searchInput) return;
+    const rows = Array.from(document.querySelectorAll('table tbody tr'));
+
+    function filterRows() {
+      const q = (searchInput.value || '').toLowerCase();
+      rows.forEach((row) => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+      });
+    }
+
+    searchInput.addEventListener('input', filterRows);
+  });
+</script>
+
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createUserModalLabel">Neuen Benutzer erstellen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" action="{% url 'admin_dashboard' %}?tab=users" id="createUserForm">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="create_user">
+
+          <div class="mb-3">
+            <label for="cu_username" class="form-label">Benutzername</label>
+            <input type="text" class="form-control" id="cu_username" name="username" required>
+          </div>
+          <div class="mb-3">
+            <label for="cu_email" class="form-label">E-Mail</label>
+            <input type="email" class="form-control" id="cu_email" name="email">
+          </div>
+          <div class="mb-3">
+            <label for="cu_password" class="form-label">Passwort</label>
+            <input type="password" class="form-control" id="cu_password" name="password" required>
+          </div>
+          <div class="mb-3">
+            <label for="cu_role" class="form-label">Rolle</label>
+            <select id="cu_role" name="role" class="form-select" required>
+              {% for value, label in roles %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="cu_gender" class="form-label">Geschlecht (Avatar)</label>
+            <select id="cu_gender" name="gender" class="form-select">
+              {% for value, label in genders %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-success w-100">Benutzer erstellen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
