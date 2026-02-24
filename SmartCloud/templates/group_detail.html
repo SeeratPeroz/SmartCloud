@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gruppe - {{ group.name }}{% endblock %}
+
+{% block content %}
+<style>
+  .patient-thumb {
+    width: 100%;
+    height: 105px;
+    object-fit: cover;
+    border-top-left-radius: .25rem;
+    border-top-right-radius: .25rem;
+  }
+  .gear-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 3;
+  }
+</style>
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="mb-1">{{ group.name }}</h3>
+      <div class="text-muted small">Erstellt von {{ group.created_by.get_full_name|default:group.created_by.username }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" onclick="loadNewFallModal({{ group.id }})">Neuen Fall</button>
+      <a class="btn btn-outline-secondary" href="{% url 'index' %}">Zurueck</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white"><strong>Gruppendetails</strong></div>
+        <div class="card-body">
+          {% if can_manage %}
+          <form method="POST" action="{% url 'group_detail' group.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="update_group">
+            <div class="mb-3">
+              <label class="form-label">Name</label>
+              <input type="text" name="name" class="form-control" value="{{ group.name }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Beschreibung</label>
+              <textarea name="description" class="form-control" rows="3">{{ group.description }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Sichtbarkeit</label>
+              <select name="visibility" class="form-select">
+                <option value="PRIVATE" {% if group.visibility == 'PRIVATE' %}selected{% endif %}>Privat</option>
+                <option value="SHARED" {% if group.visibility == 'SHARED' %}selected{% endif %}>Geteilt</option>
+              </select>
+              <div class="form-text">Privat: nur Eigentuermer/Admin. Geteilt: ausgewaehlte Benutzer.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Speichern</button>
+          </form>
+          {% else %}
+            <div class="mb-2"><strong>Name:</strong> {{ group.name }}</div>
+            <div class="mb-2"><strong>Beschreibung:</strong> {{ group.description|default:"-" }}</div>
+            <div class="mb-2"><strong>Sichtbarkeit:</strong> {{ group.get_visibility_display }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-white"><strong>Benutzer</strong></div>
+        <div class="card-body">
+          {% if can_manage %}
+          <form method="POST" action="{% url 'group_detail' group.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="form" value="share_group">
+            <div class="row g-2" style="max-height:240px; overflow:auto;">
+              {% for u in users %}
+              <div class="col-12">
+                <label class="form-check d-flex align-items-center gap-2">
+                  <input class="form-check-input" type="checkbox" name="share_with" value="{{ u.id }}"
+                         {% if u in group.shared_with.all %}checked{% endif %}>
+                  <span class="small">{{ u.get_full_name|default:u.username }}</span>
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-outline-primary mt-3">Teilen aktualisieren</button>
+          </form>
+          {% else %}
+            <div class="text-muted small">Geteilte Benutzer:</div>
+            <div class="mt-2">
+              {% for u in group.shared_with.all %}
+                <span class="badge bg-light text-dark me-1">{{ u.get_full_name|default:u.username }}</span>
+              {% empty %}
+                <span class="text-muted">Keine</span>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-header bg-white"><strong>Gruppenaktivitaeten</strong></div>
+        <div class="card-body" style="max-height: 320px; overflow: auto;">
+          {% if group_activities %}
+            <ul class="list-group list-group-flush">
+              {% for act in group_activities %}
+                <li class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ act.get_action_display }}</strong>
+                      {% if act.details %}
+                        <div class="text-muted small">{{ act.details }}</div>
+                      {% endif %}
+                      <div class="text-muted small">{{ act.actor.username|default:"system" }}</div>
+                    </div>
+                    <span class="text-muted small">{{ act.created_at|date:"Y-m-d H:i" }}</span>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted">Keine Aktivitaeten gefunden.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex align-items-center justify-content-between">
+          <strong>Faelle in dieser Gruppe</strong>
+          <span class="badge bg-secondary">{{ cases|length }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            {% for patient in cases %}
+              <div class="col-6 col-md-4">
+                <div class="card text-center position-relative" style="height: 180px;">
+                  {% if patient.usrID_id == request.user.id %}
+                    <a href="{% url 'patient_manage' patient.id %}" class="btn btn-light btn-sm gear-btn" title="Patient verwalten">
+                      <i class="fas fa-cog"></i>
+                    </a>
+                  {% endif %}
+                  <a href="{% url 'patientImage' patient.id %}" style="text-decoration: none; color: inherit;">
+                    {% if patient.thumbnail %}
+                      <img src="{{ patient.thumbnail.url }}" class="patient-thumb" alt="Thumbnail von {{ patient.ptnName }} {{ patient.ptnLastname }}">
+                    {% else %}
+                      <div class="bg-info d-flex align-items-center justify-content-center" style="height:105px; border-top-left-radius:.25rem; border-top-right-radius:.25rem;">
+                        <img src="https://img.icons8.com/ios-filled/40/ffffff/task.png" alt="Case Icon">
+                      </div>
+                    {% endif %}
+                    <div class="card-body d-flex flex-column justify-content-center align-items-center p-2">
+                      <h6 class="fw-bold mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h6>
+                      {% if patient.usrID_id == request.user.id %}
+                        <span class="badge bg-light text-dark mt-1">Eigentuemer</span>
+                      {% else %}
+                        <span class="badge bg-secondary mt-1">Gruppe</span>
+                      {% endif %}
+                    </div>
+                  </a>
+                </div>
+              </div>
+            {% empty %}
+              <div class="col-12 text-muted">Noch keine Faelle in dieser Gruppe.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'newFall.html' %}
+</div>
+{% endblock %}

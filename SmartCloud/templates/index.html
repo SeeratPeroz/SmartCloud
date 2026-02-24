@@ -308,6 +308,24 @@
 }
 .owner-chip.shared{ background: linear-gradient(135deg,#475569,#94a3b8); }
 .owner-chip.more{ background:#e2e8f0; color:#0f172a; font-weight:800; }
+
+.group-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px;
+  background: #ffffff;
+  height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+.group-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+.group-card h6 { margin: 0; font-weight: 700; }
+.group-meta { font-size: 12px; color: #6b7280; }
+.group-badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; }
+.group-badge.shared { background: #e0f2fe; color: #075985; }
+.group-badge.private { background: #fef3c7; color: #92400e; }
 </style>
 
 <div class="container py-3">
@@ -345,6 +363,40 @@
     <button class="btn btn-outline-secondary btn-sm" type="submit">Filtern</button>
   </form>
   {% endif %}
+
+  <!-- Groups section -->
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h5 class="mb-0">Gruppen</h5>
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+      Neue Gruppe
+    </button>
+  </div>
+  <div class="row g-3 mb-4">
+    {% if groups %}
+      {% for g in groups %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <a href="{% url 'group_detail' g.id %}" style="text-decoration:none; color: inherit;">
+            <div class="group-card">
+              <div>
+                <h6>{{ g.name }}</h6>
+                <div class="group-meta">{{ g.patients.count }} Faelle</div>
+              </div>
+              <div class="d-flex align-items-center justify-content-between">
+                {% if g.visibility == 'SHARED' %}
+                  <span class="group-badge shared">Geteilt</span>
+                {% else %}
+                  <span class="group-badge private">Privat</span>
+                {% endif %}
+                <div class="group-meta">Eigentuemer: {{ g.created_by.get_full_name|default:g.created_by.username }}</div>
+              </div>
+            </div>
+          </a>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="col-12 text-muted">Keine Gruppen vorhanden.</div>
+    {% endif %}
+  </div>
 
   <!-- Search bar -->
   <div class="mb-4">
@@ -449,6 +501,58 @@
   </div>
 
   {% include 'newFall.html' %}
+
+  <!-- Create Group Modal -->
+  <div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createGroupModalLabel">Neue Gruppe erstellen</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schliessen"></button>
+        </div>
+        <form method="POST" action="{% url 'group_create' %}">
+          <div class="modal-body">
+            {% csrf_token %}
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label">Gruppenname</label>
+                <input type="text" name="name" class="form-control" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Beschreibung</label>
+                <textarea name="description" class="form-control" rows="3" placeholder="Optional..."></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Sichtbarkeit</label>
+                <select name="visibility" class="form-select">
+                  <option value="PRIVATE">Privat</option>
+                  <option value="SHARED">Geteilt</option>
+                </select>
+                <div class="form-text">Bei Geteilt koennen Benutzer hinzugefuegt werden.</div>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Benutzer teilen</label>
+                <div class="row g-2" style="max-height:220px; overflow:auto;">
+                  {% for u in users %}
+                  <div class="col-12 col-md-6">
+                    <label class="form-check d-flex align-items-center gap-2">
+                      <input class="form-check-input" type="checkbox" name="share_with" value="{{ u.id }}">
+                      <span class="small">{{ u.get_full_name|default:u.username }}</span>
+                    </label>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-primary">Gruppe erstellen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 <button id="chat-toggle" title="Chat öffnen">

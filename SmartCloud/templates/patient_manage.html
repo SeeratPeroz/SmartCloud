@@ -112,6 +112,13 @@
     </div>
   {% endif %}
 
+  {% if patient.group %}
+    <div class="alert alert-info">
+      Dieser Fall gehoert zur Gruppe <strong>{{ patient.group.name }}</strong> und uebernimmt deren Sichtbarkeit.
+      <a href="{% url 'group_detail' patient.group.id %}" class="ms-2">Zur Gruppe</a>
+    </div>
+  {% endif %}
+
   <div class="row g-3">
     <!-- Details bearbeiten -->
     <div class="col-12 col-lg-6">
@@ -146,44 +153,48 @@
       <div class="card shadow-sm h-100">
         <div class="card-header bg-white"><strong>Sichtbarkeit</strong></div>
         <div class="card-body">
-          <form id="visibilityForm" method="POST" action="{% url 'patient_manage' patient.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="form" value="visibility">
+          {% if patient.group %}
+            <div class="text-muted">Die Sichtbarkeit wird durch die Gruppe gesteuert.</div>
+          {% else %}
+            <form id="visibilityForm" method="POST" action="{% url 'patient_manage' patient.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="form" value="visibility">
 
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="visibility" id="vis_private" value="PRIVATE"
-                     {% if patient.visibility == 'PRIVATE' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
-              <label class="form-check-label" for="vis_private">
-                Privat <small class="text-muted d-block">Nur Eigentümer und Admin/Manager.</small>
-              </label>
-            </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="visibility" id="vis_private" value="PRIVATE"
+                       {% if patient.visibility == 'PRIVATE' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                <label class="form-check-label" for="vis_private">
+                  Privat <small class="text-muted d-block">Nur Eigentümer und Admin/Manager.</small>
+                </label>
+              </div>
 
-            <div class="form-check mt-2">
-              <input class="form-check-input" type="radio" name="visibility" id="vis_shared" value="SHARED"
-                     {% if patient.visibility == 'SHARED' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
-              <label class="form-check-label" for="vis_shared">
-                Geteilt <small class="text-muted d-block">Wählen Sie Benutzer im nächsten Schritt aus.</small>
-              </label>
-            </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="visibility" id="vis_shared" value="SHARED"
+                       {% if patient.visibility == 'SHARED' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                <label class="form-check-label" for="vis_shared">
+                  Geteilt <small class="text-muted d-block">Wählen Sie Benutzer im nächsten Schritt aus.</small>
+                </label>
+              </div>
 
-            <div class="form-check mt-2">
-              <input class="form-check-input" type="radio" name="visibility" id="vis_public" value="PUBLIC_ORG"
-                     {% if patient.visibility == 'PUBLIC_ORG' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
-              <label class="form-check-label" for="vis_public">
-                Öffentlich <small class="text-muted d-block">Für alle angemeldeten Nutzer sichtbar.</small>
-              </label>
-            </div>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="radio" name="visibility" id="vis_public" value="PUBLIC_ORG"
+                       {% if patient.visibility == 'PUBLIC_ORG' %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                <label class="form-check-label" for="vis_public">
+                  Öffentlich <small class="text-muted d-block">Für alle angemeldeten Nutzer sichtbar.</small>
+                </label>
+              </div>
 
-            {% if can_edit %}
-            <button id="btnSaveVisibility" type="submit" class="btn btn-primary btn-sm mt-3">Sichtbarkeit speichern</button>
-            {% endif %}
+              {% if can_edit %}
+              <button id="btnSaveVisibility" type="submit" class="btn btn-primary btn-sm mt-3">Sichtbarkeit speichern</button>
+              {% endif %}
 
-            <div class="form-text mt-2">
-              Hinweis: Bei <em>Geteilt</em> erscheint ein Dialog zum Auswählen der Benutzer.
-            </div>
-          </form>
+              <div class="form-text mt-2">
+                Hinweis: Bei <em>Geteilt</em> erscheint ein Dialog zum Auswählen der Benutzer.
+              </div>
+            </form>
+          {% endif %}
 
-          {% if patient.shared_with.all %}
+          {% if patient.shared_with.all and not patient.group %}
           <hr>
           <div class="small text-muted">
             Aktuell geteilt mit:
@@ -239,7 +250,7 @@
   </div>
 </div>
 
-{% if can_edit %}
+{% if can_edit and not patient.group %}
 <!-- SHARE MODAL -->
 <div class="modal fade" id="shareModal" tabindex="-1" aria-labelledby="shareModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-scrollable">

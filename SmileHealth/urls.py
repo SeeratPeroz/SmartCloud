@@ -14,6 +14,10 @@ urlpatterns = [
     # Admin dashboard
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
 
+    # Case groups
+    path('group/create/', views.group_create, name='group_create'),
+    path('group/<int:group_id>/', views.group_detail, name='group_detail'),
+
 
 
     path('load_new_fall/', views.load_new_fall, name='load_new_fall'),

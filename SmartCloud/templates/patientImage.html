@@ -79,6 +79,9 @@
     <div>
       <h2 class="h4 mb-0">{{ patient.ptnName }} {{ patient.ptnLastname }}</h2>
       <div class="text-muted small">Geburtsdatum: {{ patient.ptnDOB }}</div>
+      {% if patient.group %}
+      <div class="text-muted small">Gruppe: <a href="{% url 'group_detail' patient.group.id %}">{{ patient.group.name }}</a></div>
+      {% endif %}
     </div>
     <button id="btnComments" class="btn btn-outline-primary btn-sm" title="Fallbezogene Kommentare und Verlauf">
       <i class="far fa-comments"></i> Kommentare

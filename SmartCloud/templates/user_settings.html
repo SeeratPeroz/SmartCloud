@@ -75,6 +75,24 @@
                     <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}">
                 </div>
 
+                <!-- Gender -->
+                <div class="mb-3">
+                    <label for="gender" class="form-label">Geschlecht</label>
+                    <select class="form-select" id="gender" name="gender">
+                        <option value="">-- Nicht angegeben --</option>
+                        <option value="MALE" {% if user.profile.gender == "MALE" %}selected{% endif %}>Männlich</option>
+                        <option value="FEMALE" {% if user.profile.gender == "FEMALE" %}selected{% endif %}>Weiblich</option>
+                        <option value="UNSPECIFIED" {% if user.profile.gender == "UNSPECIFIED" %}selected{% endif %}>Andere</option>
+                    </select>
+                </div>
+
+                <!-- Bio/Description -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">Bio/Beschreibung</label>
+                    <textarea class="form-control" id="description" name="description" rows="3" placeholder="Erzählen Sie etwas über sich selbst...">{{ user.profile.description }}</textarea>
+                    <div class="form-text">Optional - max. 500 Zeichen</div>
+                </div>
+
                 <!-- Change password -->
                 <div class="mb-3">
                     <label for="password" class="form-label">Neues Passwort</label>

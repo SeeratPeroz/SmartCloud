@@ -16,7 +16,7 @@ from django.core.files.storage import default_storage
 
 
 from .models import (
-    Patient, Image, Message, Profile, Video, Comment, Model3D, ActivityLog
+    Patient, Image, Message, Profile, Video, Comment, Model3D, ActivityLog, CaseGroup
 )
 
 # ---------- Auth & Progress ----------
@@ -70,6 +70,30 @@ def _is_admin_role(user):
         return False
 
 
+def _can_view_group(user, group):
+    if not user.is_authenticated:
+        return False
+    if _is_admin(user):
+        return True
+    if group.created_by_id == user.id:
+        return True
+    if group.visibility == CaseGroup.Visibility.SHARED and group.shared_with.filter(id=user.id).exists():
+        return True
+    return False
+
+
+def _can_manage_group(user, group):
+    return _is_admin(user) or group.created_by_id == user.id
+
+
+def _can_create_in_group(user, group):
+    if _is_admin(user) or group.created_by_id == user.id:
+        return True
+    if group.visibility == CaseGroup.Visibility.SHARED and group.shared_with.filter(id=user.id).exists():
+        return True
+    return False
+
+
 def _default_avatar_for_gender(gender):
     if gender == Profile.Gender.FEMALE:
         return "https://randomuser.me/api/portraits/women/1.jpg"
@@ -82,6 +106,8 @@ def _can_view_patient(user, patient):
         return False
     if _is_admin(user):
         return True
+    if patient.group_id:
+        return _can_view_group(user, patient.group)
     if patient.usrID_id == user.id:
         return True
     if patient.visibility == Patient.Visibility.PUBLIC_ORG:
@@ -145,33 +171,158 @@ def index(request):
     if owner and request.user.is_staff:
         base_qs = base_qs.filter(usrID_id=owner)
 
+    base_non_group = base_qs.filter(group__isnull=True)
+
     if scope == 'mine':
-        patients = base_qs.filter(usrID=request.user)
+        patients = base_non_group.filter(usrID=request.user)
     elif scope == 'shared':
-        patients = base_qs.filter(shared_with=request.user) \
-                          .exclude(usrID=request.user) \
-                          .exclude(visibility=Patient.Visibility.PUBLIC_ORG) \
-                          .distinct()
+        patients = base_non_group.filter(shared_with=request.user) \
+                                 .exclude(usrID=request.user) \
+                                 .exclude(visibility=Patient.Visibility.PUBLIC_ORG) \
+                                 .distinct()
     else:
-        patients = base_qs
+        patients = base_non_group
 
     counts = {
-        'all': base_qs.count(),
-        'mine': base_qs.filter(usrID=request.user).count(),
-        'shared': base_qs.filter(shared_with=request.user)
+        'all': base_non_group.count(),
+        'mine': base_non_group.filter(usrID=request.user).count(),
+        'shared': base_non_group.filter(shared_with=request.user)
                          .exclude(usrID=request.user)
                          .exclude(visibility=Patient.Visibility.PUBLIC_ORG)
                          .distinct()
                          .count(),
     }
 
+    if _is_admin(request.user):
+        groups = CaseGroup.objects.all()
+    else:
+        groups = CaseGroup.objects.filter(
+            Q(created_by=request.user)
+            | (Q(visibility=CaseGroup.Visibility.SHARED) & Q(shared_with=request.user))
+        ).distinct()
+
     return render(request, 'index.html', {
         'users': users,
         'patients': patients,
+        'groups': groups,
         'avatar': avatar,
         'scope': scope,
         'counts': counts,
         'unread_count': unread_count,
+    })
+
+
+@login_required
+def group_create(request):
+    if request.method != "POST":
+        return redirect('index')
+
+    name = (request.POST.get("name") or "").strip()
+    description = (request.POST.get("description") or "").strip()
+    visibility = request.POST.get("visibility") or CaseGroup.Visibility.PRIVATE
+
+    if not name:
+        messages.error(request, "Gruppenname ist erforderlich.")
+        return redirect('index')
+
+    if visibility not in {CaseGroup.Visibility.PRIVATE, CaseGroup.Visibility.SHARED}:
+        visibility = CaseGroup.Visibility.PRIVATE
+
+    group = CaseGroup.objects.create(
+        name=name,
+        description=description,
+        created_by=request.user,
+        visibility=visibility,
+    )
+
+    if visibility == CaseGroup.Visibility.SHARED:
+        ids = request.POST.getlist("share_with")
+        share_set = User.objects.filter(id__in=ids).exclude(id=request.user.id)
+        group.shared_with.set(share_set)
+
+    ActivityLog.objects.create(
+        actor=request.user,
+        action=ActivityLog.Action.GROUP_CREATED,
+        target_type="CaseGroup",
+        target_id=group.id,
+        target_label=group.name,
+        details=f"visibility={group.visibility}",
+    )
+
+    messages.success(request, "Gruppe erstellt.")
+    return redirect('group_detail', group_id=group.id)
+
+
+@login_required
+def group_detail(request, group_id):
+    group = get_object_or_404(CaseGroup, id=group_id)
+    if not _can_view_group(request.user, group):
+        return HttpResponseForbidden("Kein Zugriff")
+
+    if request.method == "POST":
+        form_type = request.POST.get("form")
+
+        if form_type in {"update_group", "share_group"} and not _can_manage_group(request.user, group):
+            messages.error(request, "Nur Eigentümer oder Admin dürfen diese Gruppe verwalten.")
+            return redirect('group_detail', group_id=group.id)
+
+        if form_type == "update_group":
+            name = (request.POST.get("name") or group.name).strip()
+            description = (request.POST.get("description") or "").strip()
+            visibility = request.POST.get("visibility") or group.visibility
+
+            if visibility not in {CaseGroup.Visibility.PRIVATE, CaseGroup.Visibility.SHARED}:
+                visibility = group.visibility
+
+            group.name = name or group.name
+            group.description = description
+            group.visibility = visibility
+            group.save()
+
+            if visibility == CaseGroup.Visibility.PRIVATE:
+                group.shared_with.clear()
+
+            ActivityLog.objects.create(
+                actor=request.user,
+                action=ActivityLog.Action.GROUP_UPDATED,
+                target_type="CaseGroup",
+                target_id=group.id,
+                target_label=group.name,
+                details=f"visibility={group.visibility}",
+            )
+
+            messages.success(request, "Gruppendaten gespeichert.")
+            return redirect('group_detail', group_id=group.id)
+
+        if form_type == "share_group":
+            ids = request.POST.getlist("share_with")
+            share_set = User.objects.filter(id__in=ids).exclude(id=group.created_by_id)
+            group.shared_with.set(share_set)
+            group.visibility = CaseGroup.Visibility.SHARED
+            group.save(update_fields=["visibility"])
+            ActivityLog.objects.create(
+                actor=request.user,
+                action=ActivityLog.Action.GROUP_SHARED,
+                target_type="CaseGroup",
+                target_id=group.id,
+                target_label=group.name,
+                details=f"shared_with={share_set.count()}",
+            )
+            messages.success(request, "Gruppe wurde geteilt.")
+            return redirect('group_detail', group_id=group.id)
+
+    cases = group.patients.select_related("usrID").order_by("-id")
+    group_activities = ActivityLog.objects.select_related("actor") \
+        .filter(target_type="CaseGroup", target_id=group.id) \
+        .order_by("-created_at")[:20]
+
+    return render(request, "group_detail.html", {
+        "group": group,
+        "cases": cases,
+        "can_manage": _can_manage_group(request.user, group),
+        "users": User.objects.exclude(id=request.user.id),
+        "groups": [group],
+        "group_activities": group_activities,
     })
 
 
@@ -273,6 +424,54 @@ def admin_dashboard(request):
                 redirect_url += f"&user_id={user_id}"
             return redirect(redirect_url)
 
+        if form_type == "edit_user":
+            target_id = request.POST.get("user_id") or ""
+            if target_id.isdigit():
+                target = User.objects.select_related("profile").filter(id=int(target_id)).first()
+            else:
+                target = None
+
+            if not target:
+                messages.error(request, "Benutzer nicht gefunden.")
+            else:
+                target.username = (request.POST.get("username") or "").strip() or target.username
+                target.email = (request.POST.get("email") or "").strip() or target.email
+                target.first_name = (request.POST.get("first_name") or "").strip() or target.first_name
+                target.last_name = (request.POST.get("last_name") or "").strip() or target.last_name
+
+                # Password (optional - only if provided)
+                password = (request.POST.get("password") or "").strip()
+                if password:
+                    target.set_password(password)
+
+                target.save()
+
+                # Update profile
+                profile = target.profile
+                gender = request.POST.get("gender", "").strip()
+                description = request.POST.get("description", "").strip()
+                role = request.POST.get("role", "").strip()
+
+                valid_genders = {g for g, _ in Profile.Gender.choices}
+                valid_roles = {r for r, _ in Profile.Role.choices}
+
+                if gender in valid_genders:
+                    profile.gender = gender
+                if role in valid_roles:
+                    profile.role = role
+                if description:
+                    profile.description = description
+                profile.save()
+
+                messages.success(request, f"Benutzer '{target.username}' erfolgreich aktualisiert.")
+
+            redirect_url = f"{reverse('admin_dashboard')}?tab=users"
+            if user_id:
+                redirect_url += f"&user_id={user_id}"
+            if role_filter:
+                redirect_url += f"&role={role_filter}"
+            return redirect(redirect_url)
+
     return render(request, "admin_dashboard.html", {
         "tab": tab,
         "users": users_qs,
@@ -309,6 +508,9 @@ def patient_manage(request, patient_id):
 
         # ---- Sichtbarkeit ändern (PRIVATE / PUBLIC_ORG via normal submit) ----
         elif form_type == "visibility":
+            if patient.group_id:
+                messages.error(request, "Gruppen-Faelle verwenden die Gruppen-Sichtbarkeit.")
+                return redirect('patient_manage', patient_id=patient.id)
             vis = request.POST.get("visibility")
             allowed = {
                 Patient.Visibility.PRIVATE,
@@ -337,6 +539,9 @@ def patient_manage(request, patient_id):
 
         # ---- Set shared via modal (visibility + shares in einem Schritt) ----
         elif form_type == "set_shared":
+            if patient.group_id:
+                messages.error(request, "Gruppen-Faelle werden ueber die Gruppe geteilt.")
+                return redirect('patient_manage', patient_id=patient.id)
             ids = request.POST.getlist("share_with")
             share_set = User.objects.filter(id__in=ids).exclude(id=patient.usrID_id)
 
@@ -386,7 +591,14 @@ def patient_manage(request, patient_id):
 
 @login_required
 def load_new_fall(request):
-    return render(request, 'newFall.html')
+    if _is_admin(request.user):
+        groups = CaseGroup.objects.all()
+    else:
+        groups = CaseGroup.objects.filter(
+            Q(created_by=request.user)
+            | (Q(visibility=CaseGroup.Visibility.SHARED) & Q(shared_with=request.user))
+        ).distinct()
+    return render(request, 'newFall.html', {"groups": groups})
 
 @login_required
 def patient_list(request):
@@ -399,14 +611,34 @@ def add_patient(request):
         ptnName = request.POST.get('ptnName')
         ptnLastname = request.POST.get('ptnLastname')
         ptnDOB = request.POST.get('ptnDOB')
+        group_id = request.POST.get('group_id')
 
-        Patient.objects.create(
+        group = None
+        if group_id and str(group_id).isdigit():
+            group = CaseGroup.objects.filter(id=int(group_id)).first()
+            if not group or not _can_create_in_group(request.user, group):
+                messages.error(request, "Keine Berechtigung fuer diese Gruppe.")
+                return redirect('index')
+
+        patient = Patient.objects.create(
             ptnName=ptnName,
             ptnLastname=ptnLastname,
             ptnDOB=ptnDOB,
             usrID=request.user,
-            visibility=Patient.Visibility.PUBLIC_ORG,  # ensure default "Öffentlich"
+            visibility=Patient.Visibility.PRIVATE if group else Patient.Visibility.PUBLIC_ORG,
+            group=group,
         )
+        if group:
+            ActivityLog.objects.create(
+                actor=request.user,
+                action=ActivityLog.Action.GROUP_CASE_CREATED,
+                target_type="CaseGroup",
+                target_id=group.id,
+                target_label=group.name,
+                details=f"case={patient.ptnName} {patient.ptnLastname} (#{patient.id})",
+            )
+        if group:
+            return redirect('group_detail', group_id=group.id)
         return redirect('index')
 
     return redirect('index')
@@ -546,6 +778,17 @@ def delete_patient(request, patient_id):
     if not _can_edit_patient(request.user, patient):
         return HttpResponseForbidden("Kein Zugriff")
 
+    group = patient.group
+    if group:
+        ActivityLog.objects.create(
+            actor=request.user,
+            action=ActivityLog.Action.GROUP_CASE_DELETED,
+            target_type="CaseGroup",
+            target_id=group.id,
+            target_label=group.name,
+            details=f"case={patient.ptnName} {patient.ptnLastname} (#{patient.id})",
+        )
+
     patient.delete()
     return redirect('index')
 
@@ -608,6 +851,14 @@ def user_settings(request):
         else:
             # Use selected preset URL (if any)
             profile.avatar_url = request.POST.get("avatar_url") or profile.avatar_url
+
+        # Profile fields: gender and description
+        gender = request.POST.get("gender", "").strip()
+        description = request.POST.get("description", "").strip()
+        if gender in {g for g, _ in Profile.Gender.choices}:
+            profile.gender = gender
+        if description:
+            profile.description = description
 
         # Save profile first (so avatar persists even if password step alters session)
         profile.save()

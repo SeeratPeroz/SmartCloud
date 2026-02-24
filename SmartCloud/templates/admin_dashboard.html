@@ -105,6 +105,54 @@
 {% endif %}
 
 {% if active_tab == 'users' %}
+  <style>
+    .user-table-row {
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .user-table-row:hover {
+      background-color: #f8f9fa !important;
+      transform: translateX(2px);
+    }
+    .user-table-row:hover td {
+      color: #0d6efd;
+      font-weight: 500;
+    }
+    .profile-section {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .profile-avatar {
+      border: 4px solid #0d6efd;
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.2);
+      animation: scaleIn 0.3s ease-out;
+    }
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.8);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    .profile-info-box {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      border-radius: 8px;
+      padding: 12px;
+      border-left: 4px solid #0d6efd;
+    }
+  </style>
   <div class="row g-4">
     <div class="col-lg-8">
       <div class="card shadow-sm">
@@ -144,7 +192,9 @@
             <table class="table table-sm table-striped align-middle">
               <thead>
                 <tr>
+                  <th>Avatar</th>
                   <th>Benutzername</th>
+                  <th>Name</th>
                   <th>E-Mail</th>
                   <th>Rolle</th>
                   <th>Status</th>
@@ -153,10 +203,18 @@
               </thead>
               <tbody>
                 {% for u in users %}
-                  <tr>
+                  <tr class="user-table-row" onclick="document.location='{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}&user_id={{ u.id }}'">>
+                    <td>
+                      <img src="{{ u.profile.avatar_url }}" class="rounded-circle" width="32" height="32" alt="{{ u.username }}" style="object-fit: cover;">
+                    </td>
                     <td>{{ u.username }}</td>
+                    <td>
+                      {{ u.first_name }}{% if u.first_name and u.last_name %} {% endif %}{{ u.last_name }}
+                    </td>
                     <td>{{ u.email }}</td>
-                    <td>{{ u.profile.role|default:"-" }}</td>
+                    <td>
+                      <span class="badge bg-primary">{{ u.profile.role|default:"-" }}</span>
+                    </td>
                     <td>
                       {% if u.is_active %}
                         <span class="badge bg-success">Aktiv</span>
@@ -164,7 +222,7 @@
                         <span class="badge bg-secondary">Inaktiv</span>
                       {% endif %}
                     </td>
-                    <td class="text-end">
+                    <td class="text-end" onclick="event.stopPropagation();">
                       <form method="post" class="d-inline" action="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}{% if selected_user %}&user_id={{ selected_user.id }}{% endif %}">
                         {% csrf_token %}
                         <input type="hidden" name="form" value="toggle_user">
@@ -181,14 +239,11 @@
                           </button>
                         {% endif %}
                       </form>
-                      <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}&user_id={{ u.id }}">
-                        Anzeigen
-                      </a>
                     </td>
                   </tr>
                 {% empty %}
                   <tr>
-                    <td colspan="5" class="text-muted">Keine Benutzer gefunden.</td>
+                    <td colspan="7" class="text-muted">Keine Benutzer gefunden.</td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -205,18 +260,77 @@
         </div>
         <div class="card-body">
           {% if selected_user %}
-            <div class="text-center mb-3">
-              <img src="{{ selected_user.profile.avatar_url }}" class="rounded-circle" width="80" height="80" alt="Avatar">
+            <div class="text-center mb-4 profile-section">
+              <img src="{{ selected_user.profile.avatar_url }}" class="rounded-circle profile-avatar" width="100" height="100" alt="Avatar">
             </div>
-            <div class="mb-2"><strong>Benutzername:</strong> {{ selected_user.username }}</div>
-            <div class="mb-2"><strong>E-Mail:</strong> {{ selected_user.email|default:"-" }}</div>
-            <div class="mb-2"><strong>Rolle:</strong> {{ selected_user.profile.role|default:"-" }}</div>
-            <div class="mb-2"><strong>Geschlecht:</strong> {{ selected_user.profile.gender|default:"-" }}</div>
-            <div class="mb-2"><strong>Status:</strong>
-              {% if selected_user.is_active %}
-                <span class="badge bg-success">Aktiv</span>
-              {% else %}
-                <span class="badge bg-secondary">Inaktiv</span>
+
+            <!-- User Info Grid -->
+            <div class="row g-3 mb-4 profile-section">
+              <div class="col-12">
+                <div class="profile-info-box">
+                  <h6 class="text-muted mb-2" style="font-size: 12px; font-weight: 700; letter-spacing: 1px;">BENUTZERDATEN</h6>
+                  <div class="mb-2">
+                    <small class="text-muted">Benutzername</small>
+                    <p class="mb-0"><strong>{{ selected_user.username }}</strong></p>
+                  </div>
+                  <div class="mb-2">
+                    <small class="text-muted">E-Mail</small>
+                    <p class="mb-0"><strong>{{ selected_user.email|default:"-" }}</strong></p>
+                  </div>
+                  <div class="mb-2">
+                    <small class="text-muted">Vorname</small>
+                    <p class="mb-0"><strong>{{ selected_user.first_name|default:"-" }}</strong></p>
+                  </div>
+                  <div class="mb-2">
+                    <small class="text-muted">Nachname</small>
+                    <p class="mb-0"><strong>{{ selected_user.last_name|default:"-" }}</strong></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="profile-info-box">
+                  <h6 class="text-muted mb-2" style="font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROFILDATEN</h6>
+                  <div class="mb-2">
+                    <small class="text-muted">Rolle</small>
+                    <p class="mb-0">
+                      <span class="badge bg-primary" style="padding: 6px 10px; font-size: 12px;">{{ selected_user.profile.role|default:"-" }}</span>
+                    </p>
+                  </div>
+                  <div class="mb-2">
+                    <small class="text-muted">Geschlecht</small>
+                    <p class="mb-0"><strong>{{ selected_user.profile.get_gender_display|default:"-" }}</strong></p>
+                  </div>
+                  <div class="mb-2">
+                    <small class="text-muted">Status</small>
+                    <p class="mb-0">
+                      {% if selected_user.is_active %}
+                        <span class="badge bg-success" style="padding: 6px 10px; font-size: 12px;">Aktiv</span>
+                      {% else %}
+                        <span class="badge bg-secondary" style="padding: 6px 10px; font-size: 12px;">Inaktiv</span>
+                      {% endif %}
+                    </p>
+                  </div>
+                  {% if selected_user.profile.branches.all %}
+                  <div class="mb-2">
+                    <small class="text-muted">Bereiche</small>
+                    <p class="mb-0" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                      {% for branch in selected_user.profile.branches.all %}
+                        <span class="badge bg-info" style="padding: 6px 10px; font-size: 12px;">{{ branch.name }}</span>
+                      {% endfor %}
+                    </p>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if selected_user.profile.description %}
+              <div class="col-12">
+                <div class="profile-info-box">
+                  <h6 class="text-muted mb-2" style="font-size: 12px; font-weight: 700; letter-spacing: 1px;">BIO</h6>
+                  <p class="mb-0" style="white-space: pre-wrap; font-size: 13px; line-height: 1.5;">{{ selected_user.profile.description }}</p>
+                </div>
+              </div>
               {% endif %}
             </div>
             <div class="d-grid gap-2 mb-3">
@@ -236,6 +350,9 @@
                   </button>
                 {% endif %}
               </form>
+              <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editUserModal" {% if selected_user.id == request.user.id %}disabled{% endif %}>
+                Benutzer bearbeiten
+              </button>
             </div>
             <hr>
             <div class="fw-semibold mb-2">Letzte 10 Aktivitäten</div>
@@ -282,6 +399,71 @@
     searchInput.addEventListener('input', filterRows);
   });
 </script>
+
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editUserModalLabel">Benutzer bearbeiten</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+      </div>
+      <div class="modal-body">
+        {% if selected_user %}
+        <form method="post" action="{% url 'admin_dashboard' %}?tab=users{% if role_filter %}&role={{ role_filter }}{% endif %}&user_id={{ selected_user.id }}" id="editUserForm">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="edit_user">
+          <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+
+          <div class="mb-3">
+            <label for="eu_username" class="form-label">Benutzername</label>
+            <input type="text" class="form-control" id="eu_username" name="username" value="{{ selected_user.username }}">
+          </div>
+          <div class="mb-3">
+            <label for="eu_email" class="form-label">E-Mail</label>
+            <input type="email" class="form-control" id="eu_email" name="email" value="{{ selected_user.email }}">
+          </div>
+          <div class="mb-3">
+            <label for="eu_first_name" class="form-label">Vorname</label>
+            <input type="text" class="form-control" id="eu_first_name" name="first_name" value="{{ selected_user.first_name }}">
+          </div>
+          <div class="mb-3">
+            <label for="eu_last_name" class="form-label">Nachname</label>
+            <input type="text" class="form-control" id="eu_last_name" name="last_name" value="{{ selected_user.last_name }}">
+          </div>
+          <div class="mb-3">
+            <label for="eu_password" class="form-label">Passwort ändern (optional)</label>
+            <input type="password" class="form-control" id="eu_password" name="password" placeholder="Leer lassen um nicht zu ändern">
+            <div class="form-text">Lassen Sie dieses Feld leer, wenn Sie das Passwort nicht ändern möchten.</div>
+          </div>
+          <div class="mb-3">
+            <label for="eu_role" class="form-label">Rolle</label>
+            <select id="eu_role" name="role" class="form-select">
+              {% for value, label in roles %}
+                <option value="{{ value }}" {% if selected_user.profile.role == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="eu_gender" class="form-label">Geschlecht</label>
+            <select id="eu_gender" name="gender" class="form-select">
+              {% for value, label in genders %}
+                <option value="{{ value }}" {% if selected_user.profile.gender == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="eu_description" class="form-label">Bio/Beschreibung</label>
+            <textarea class="form-control" id="eu_description" name="description" rows="3" placeholder="Bio des Benutzers...">{{ selected_user.profile.description }}</textarea>
+          </div>
+          <button type="submit" class="btn btn-success w-100">Änderungen speichern</button>
+        </form>
+        {% else %}
+        <p class="text-muted">Wählen Sie einen Benutzer zum Bearbeiten aus.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
